@@ -1,14 +1,133 @@
 {
-  "updatedAt": "2026-08-20T15:00:00.000Z",
-  "period": "Agosto/2026",
-  "regions": [
-    { "id": "sudeste", "name": "Sudeste", "position": 1, "salesAmount": 850000, "orders": 142, "trend": 12.4 },
-    { "id": "sul", "name": "Sul", "position": 2, "salesAmount": 635000, "orders": 108, "trend": 8.1 },
-    { "id": "centro-oeste", "name": "Centro-Oeste", "position": 3, "salesAmount": 492000, "orders": 79, "trend": 5.7 }
-  ],
-  "sellers": [
-    { "id": "v1", "name": "Marina Costa", "region": "Sudeste", "position": 1, "salesAmount": 215000, "orders": 37, "trend": 14.2 },
-    { "id": "v2", "name": "Rafael Lima", "region": "Sul", "position": 2, "salesAmount": 198500, "orders": 32, "trend": 9.8 },
-    { "id": "v3", "name": "Camila Souza", "region": "Centro-Oeste", "position": 3, "salesAmount": 176800, "orders": 29, "trend": 7.3 }
-  ]
+    "updatedAt":  "2026-08-20T00:00:00.000Z",
+    "period":  "Aguardando planilha de metas",
+    "management":  {
+                       "generalManager":  "Marcelo",
+                       "salesManager":  "Anderson",
+                       "salesSupervisor":  "Rafael Pereira"
+                   },
+    "rankingRule":  "attainmentPercentage descending",
+    "teams":  [
+                  {
+                      "id":  "braganca",
+                      "name":  "BraganÃ§a",
+                      "leader":  null,
+                      "external":  "Alessandro",
+                      "specialist":  "Leiz",
+                      "corporate":  "Heloa",
+                      "salesAmount":  null,
+                      "targetAmount":  null,
+                      "challengeTargetAmount":  null,
+                      "tons":  null,
+                      "targetTons":  null,
+                      "challengeTargetTons":  null
+                  },
+                  {
+                      "id":  "jundiai",
+                      "name":  "JundiaÃ­",
+                      "leader":  null,
+                      "external":  "Dyovanna",
+                      "specialist":  "Josiane FrazÃ£o",
+                      "corporate":  null,
+                      "corporateStatus":  "Contratar",
+                      "salesAmount":  null,
+                      "targetAmount":  null,
+                      "challengeTargetAmount":  null,
+                      "tons":  null,
+                      "targetTons":  null,
+                      "challengeTargetTons":  null
+                  },
+                  {
+                      "id":  "varginha",
+                      "name":  "Varginha",
+                      "leader":  null,
+                      "external":  "Peterson",
+                      "specialist":  "Bruna",
+                      "corporate":  "Thais",
+                      "salesAmount":  null,
+                      "targetAmount":  null,
+                      "challengeTargetAmount":  null,
+                      "tons":  null,
+                      "targetTons":  null,
+                      "challengeTargetTons":  null
+                  },
+                  {
+                      "id":  "pouso-alegre",
+                      "name":  "Pouso Alegre",
+                      "leader":  null,
+                      "external":  "Paola",
+                      "specialist":  "Rafaela",
+                      "corporate":  "Vitoria",
+                      "salesAmount":  null,
+                      "targetAmount":  null,
+                      "challengeTargetAmount":  null,
+                      "tons":  null,
+                      "targetTons":  null,
+                      "challengeTargetTons":  null
+                  },
+                  {
+                      "id":  "pocos",
+                      "name":  "PoÃ§os de Caldas",
+                      "leader":  null,
+                      "external":  "JosÃ© Felipe",
+                      "specialist":  "Milena",
+                      "corporate":  "Camila Guimenti",
+                      "salesAmount":  null,
+                      "targetAmount":  null,
+                      "challengeTargetAmount":  null,
+                      "tons":  null,
+                      "targetTons":  null,
+                      "challengeTargetTons":  null
+                  },
+                  {
+                      "id":  "itajuba",
+                      "name":  "ItajubÃ¡",
+                      "leader":  null,
+                      "external":  "Jennifer",
+                      "specialist":  "Gabriela",
+                      "corporate":  "Jessica S.",
+                      "salesAmount":  null,
+                      "targetAmount":  null,
+                      "challengeTargetAmount":  null,
+                      "tons":  null,
+                      "targetTons":  null,
+                      "challengeTargetTons":  null
+                  },
+                  {
+                      "id":  "extrema",
+                      "name":  "Extrema",
+                      "leader":  null,
+                      "external":  "Gustavo",
+                      "specialist":  "Inayara",
+                      "corporate":  "Mateus Marques",
+                      "salesAmount":  null,
+                      "targetAmount":  null,
+                      "challengeTargetAmount":  null,
+                      "tons":  null,
+                      "targetTons":  null,
+                      "challengeTargetTons":  null
+                  },
+                  {
+                      "id":  "cambui",
+                      "name":  "CambuÃ­ / Micro-regiÃ£o",
+                      "leader":  null,
+                      "external":  "Juliano",
+                      "specialist":  "Edmila",
+                      "corporate":  "Matheus Teixeira",
+                      "construction":  "Ariane",
+                      "salesAmount":  null,
+                      "targetAmount":  null,
+                      "challengeTargetAmount":  null,
+                      "tons":  null,
+                      "targetTons":  null,
+                      "challengeTargetTons":  null
+                  }
+              ],
+    "sellers":  [
+
+                ],
+    "rankingDimensions":  [
+                              "revenue",
+                              "tonnage"
+                          ]
 }

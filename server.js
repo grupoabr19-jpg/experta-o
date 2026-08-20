@@ -2,6 +2,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { rankingFromCsv } = require('./csv-ranking');
 
 const root = __dirname;
 const publicDir = fs.existsSync(path.join(root, 'dist')) ? path.join(root, 'dist') : path.join(root, 'public');
@@ -32,7 +33,8 @@ async function getRanking() {
   try {
     const response = await fetch(process.env.SALES_DATA_URL, { signal: controller.signal, headers: process.env.ASTER_AUTH_TOKEN ? { Authorization: `Bearer ${process.env.ASTER_AUTH_TOKEN.replace(/^Bearer\s+/i, '')}` } : {} });
     if (!response.ok) throw new Error(`Fonte externa respondeu ${response.status}`);
-    const data = await response.json();
+    const raw = await response.text();
+    const data = raw.trim().startsWith('{') ? JSON.parse(raw) : rankingFromCsv(raw);
     if (!validRanking(data)) throw new Error('Contrato de ranking inválido');
     return { ...data, source: 'api' };
   } finally { clearTimeout(timer); }

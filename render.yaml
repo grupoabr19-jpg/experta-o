@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: playbook-vendas-grupo-abr
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: SALES_DATA_MODE
+        value: mock
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: SALES_DATA_URL
+        sync: false
+      - key: ASTER_API_URL
+        sync: false
+      - key: ASTER_AUTH_TOKEN
+        sync: false
+      - key: KOMMO_API_URL
+        sync: false
+      - key: KOMMO_AUTH_TOKEN
+        sync: false

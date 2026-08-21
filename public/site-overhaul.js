@@ -10,6 +10,7 @@
     const scriptsActive=['prospeccao','objecoes','posvenda','crise'].includes(current);
     document.querySelector('#sideNav').innerHTML=
       link('ranking','Ranking','nav-ranking')+
+      link('conta','Minha área','nav-account')+
       link('visao','Visão geral')+
       link('regras','Regras de ouro')+
       link('portfolio','Portfólio')+

@@ -92,6 +92,38 @@ async function sendIdeaMessage(input) {
   const html=`<h2>Nova contribuição para o #IdeAÇO</h2><p><b>Nome:</b> ${escapeHtml(name)}</p><p><b>E-mail:</b> ${escapeHtml(email||'Não informado')}</p><p><b>Categoria:</b> ${escapeHtml(category)}</p><p><b>Título:</b> ${escapeHtml(title)}</p><p><b>Mensagem:</b></p><p style="white-space:pre-wrap">${escapeHtml(message)}</p>`;
   await transport.sendMail({ from:`Expertaço — #IdeAÇO <${process.env.IDEAACO_EMAIL_USER}>`, to:ideaRecipients.to, cc:ideaRecipients.cc, replyTo:email||undefined, subject, text:`Nova contribuição para o #IdeAÇO\n\nNome: ${name}\nE-mail: ${email||'Não informado'}\nCategoria: ${category}\nTítulo: ${title}\n\n${message}`, html });
 }
+const neonAuthBaseUrl = process.env.NEON_AUTH_BASE_URL || '';
+const corporateEmail = email => typeof email === 'string' && /^[^\s@]+@grupoabr\.com\.br$/i.test(email.trim());
+const allowedAuthRoutes = new Set(['sign-up/email','sign-in/email','sign-out','get-session']);
+
+async function proxyNeonAuth(req, res, route) {
+  if (!neonAuthBaseUrl) return send(res, 503, { error:'Autenticação ainda não configurada.' });
+  if (!allowedAuthRoutes.has(route)) return send(res, 404, { error:'Rota de autenticação não encontrada.' });
+  try {
+    let body;
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      body = await parseBody(req);
+      if ((route === 'sign-up/email' || route === 'sign-in/email') && !corporateEmail(body.email)) return send(res, 403, { error:'Use exclusivamente seu e-mail @grupoabr.com.br.' });
+    }
+    const response = await fetch(`${neonAuthBaseUrl.replace(/\/$/,'')}/${route}`, {
+      method:req.method,
+      headers:{'Content-Type':'application/json','Accept':'application/json','Cookie':req.headers.cookie||'','Origin':process.env.APP_ORIGIN||'https://experta-o.onrender.com'},
+      body:body?JSON.stringify(body):undefined,
+      redirect:'manual'
+    });
+    const payload = await response.text();
+    let parsed=null; try { parsed=JSON.parse(payload); } catch {}
+    const sessionEmail=parsed?.user?.email||parsed?.session?.user?.email||parsed?.data?.user?.email;
+    if (route === 'get-session' && sessionEmail && !corporateEmail(sessionEmail)) return send(res, 403, { error:'Conta fora do domínio corporativo.' });
+    const headers={};
+    const cookies=typeof response.headers.getSetCookie==='function'?response.headers.getSetCookie():[];
+    if(cookies.length)headers['Set-Cookie']=cookies;
+    res.writeHead(response.status,{'Content-Type':response.headers.get('content-type')||'application/json; charset=utf-8','Cache-Control':'no-store',...headers});res.end(payload);
+  } catch (error) {
+    console.error('Falha Neon Auth:',error.message);
+    return send(res,502,{error:'Não foi possível acessar a autenticação agora.'});
+  }
+}
 function serveFile(req, res) {
   const requested = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
   if (requested === '/expertaço.png') {
@@ -111,7 +143,11 @@ function serveFile(req, res) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/api/health') return send(res, 200, { status: 'ok', mode, timestamp: new Date().toISOString() });
-  if (url.pathname === '/api/ideaaco' && req.method === 'POST') {
+  if (url.pathname.startsWith('/api/auth/')) {
+    const authRoute=url.pathname.slice('/api/auth/'.length);
+    if (!['GET','POST'].includes(req.method)) return send(res,405,{error:'Método não permitido.'});
+    return proxyNeonAuth(req,res,authRoute);
+  }  if (url.pathname === '/api/ideaaco' && req.method === 'POST') {
     if (!ideaRequestAllowed(req)) return send(res, 429, { error:'Muitas mensagens em pouco tempo. Aguarde alguns minutos.' });
     try {
       const body = await parseBody(req);

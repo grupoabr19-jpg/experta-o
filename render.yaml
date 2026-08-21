@@ -27,3 +27,7 @@ services:
         sync: false
       - key: IDEAACO_EMAIL_APP_PASSWORD
         sync: false
+      - key: NEON_AUTH_BASE_URL
+        value: https://ep-little-union-a69b2ecz.neonauth.us-west-2.aws.neon.tech/neondb/auth
+      - key: APP_ORIGIN
+        value: https://experta-o.onrender.com

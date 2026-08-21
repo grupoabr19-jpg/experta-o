@@ -124,6 +124,23 @@ async function proxyNeonAuth(req, res, route) {
     return send(res,502,{error:'Não foi possível acessar a autenticação agora.'});
   }
 }
+let databasePool;
+function db() {
+  if (!process.env.DATABASE_URL) throw new Error('DATABASE_NOT_CONFIGURED');
+  if (!databasePool) { const { Pool } = require('pg'); databasePool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false},max:5}); }
+  return databasePool;
+}
+async function authenticatedUser(req) {
+  if (!neonAuthBaseUrl || !req.headers.cookie) return null;
+  const response=await fetch(`${neonAuthBaseUrl.replace(/\/$/,'')}/get-session`,{headers:{Cookie:req.headers.cookie,Accept:'application/json',Origin:process.env.APP_ORIGIN||'https://experta-o.onrender.com'}});
+  if(!response.ok)return null;
+  const data=await response.json().catch(()=>null);const session=data?.user?data:data?.data?.user?data.data:data?.session?.user?data.session:null;const user=session?.user;
+  return user&&corporateEmail(user.email)?{id:String(user.id),email:String(user.email).toLowerCase(),name:cleanText(user.name||user.email.split('@')[0],120)}:null;
+}
+const safeUrl=value=>{const url=cleanText(value,500);if(!url)return'';try{const parsed=new URL(url);return ['http:','https:'].includes(parsed.protocol)?parsed.toString():'';}catch{return'';}};
+async function ensureProfile(user){const result=await db().query(`INSERT INTO public.user_profiles(user_id,email,display_name) VALUES($1,$2,$3) ON CONFLICT(user_id) DO UPDATE SET email=EXCLUDED.email RETURNING *`,[user.id,user.email,user.name]);return result.rows[0];}
+async function handleProfile(req,res){const user=await authenticatedUser(req);if(!user)return send(res,401,{error:'Faça login para acessar seu perfil.'});if(req.method==='GET')return send(res,200,await ensureProfile(user));if(req.method==='PUT'){const input=await parseBody(req),name=cleanText(input.displayName,120),bio=cleanText(input.bio,301);if(!name||bio.length>300)return send(res,400,{error:'Confira o nome e o limite de 300 caracteres da bio.'});await ensureProfile(user);const result=await db().query(`UPDATE public.user_profiles SET display_name=$2,bio=$3,linkedin_url=$4,instagram_url=$5,facebook_url=$6,updated_at=now() WHERE user_id=$1 RETURNING *`,[user.id,name,bio,safeUrl(input.linkedinUrl),safeUrl(input.instagramUrl),safeUrl(input.facebookUrl)]);return send(res,200,result.rows[0]);}return send(res,405,{error:'Método não permitido.'});}
+async function handleFeed(req,res){const user=await authenticatedUser(req);if(!user)return send(res,401,{error:'Faça login para acessar o feed.'});await ensureProfile(user);if(req.method==='GET'){const result=await db().query(`SELECT p.id,p.content,p.created_at,p.user_id,u.display_name,u.bio,u.linkedin_url,u.instagram_url,u.facebook_url FROM public.feed_posts p JOIN public.user_profiles u ON u.user_id=p.user_id ORDER BY p.created_at DESC LIMIT 60`);return send(res,200,{posts:result.rows});}if(req.method==='POST'){const input=await parseBody(req),content=cleanText(input.content,501);if(!content||content.length>500)return send(res,400,{error:'A publicação deve ter entre 1 e 500 caracteres.'});const result=await db().query(`INSERT INTO public.feed_posts(user_id,content) VALUES($1,$2) RETURNING id,content,created_at,user_id`,[user.id,content]);return send(res,201,result.rows[0]);}return send(res,405,{error:'Método não permitido.'});}
 function serveFile(req, res) {
   const requested = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
   if (requested === '/expertaço.png') {
@@ -143,7 +160,8 @@ function serveFile(req, res) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/api/health') return send(res, 200, { status: 'ok', mode, timestamp: new Date().toISOString() });
-  if (url.pathname.startsWith('/api/auth/')) {
+  if (url.pathname === '/api/profile') { try{return await handleProfile(req,res);}catch(error){console.error('Falha no perfil:',error.message);return send(res,502,{error:'Não foi possível acessar o perfil agora.'});} }
+  if (url.pathname === '/api/feed') { try{return await handleFeed(req,res);}catch(error){console.error('Falha no feed:',error.message);return send(res,502,{error:'Não foi possível acessar o feed agora.'});} }  if (url.pathname.startsWith('/api/auth/')) {
     const authRoute=url.pathname.slice('/api/auth/'.length);
     if (!['GET','POST'].includes(req.method)) return send(res,405,{error:'Método não permitido.'});
     return proxyNeonAuth(req,res,authRoute);

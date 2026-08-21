@@ -1,17 +1,20 @@
 {
-  "name": "playbook-vendas-grupo-abr",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Playbook comercial interativo do Grupo ABR",
-  "scripts": {
-    "dev": "node --watch server.js",
-    "start": "node server.js",
-    "test": "node --test",
-    "typecheck": "node --check server.js && node --check public/app.js",
-    "lint": "node --check server.js && node --check public/app.js",
-    "build": "node scripts/build.js"
-  },
-  "engines": {
-    "node": ">=20"
-  }
+    "name":  "playbook-vendas-grupo-abr",
+    "version":  "1.0.0",
+    "private":  true,
+    "description":  "Playbook comercial interativo do Grupo ABR",
+    "scripts":  {
+                    "dev":  "node --watch server.js",
+                    "start":  "node server.js",
+                    "test":  "node --test",
+                    "typecheck":  "node --check server.js \u0026\u0026 node --check public/app.js",
+                    "lint":  "node --check server.js \u0026\u0026 node --check public/app.js",
+                    "build":  "node scripts/build.js"
+                },
+    "engines":  {
+                    "node":  "\u003e=20"
+                },
+    "dependencies":  {
+                         "nodemailer":  "7.0.6"
+                     }
 }

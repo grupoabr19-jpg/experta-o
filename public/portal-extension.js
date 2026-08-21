@@ -11,7 +11,7 @@
   cards.push(
     {id:'blog-destaques',section:'blog',audience:'todos',title:'Central de novidades',tags:['notícias','produtos'],html:'<div class="blog-grid"><article><small>NOVOS PRODUTOS</small><h4>Espaço para lançamentos</h4><p>Inclua aplicações, medidas, diferenciais e orientação comercial.</p></article><article><small>INTELIGÊNCIA COMERCIAL</small><h4>Notícias para vender melhor</h4><p>Mercado, aço, construção, indústria, logística e oportunidades regionais.</p></article><article><small>EQUIPE</small><h4>Boas práticas e conquistas</h4><p>Cases, aprendizados das rotas e ações que merecem ser replicadas.</p></article></div>'},
     {id:'marketing-links',section:'marketing',audience:'todos',title:'Biblioteca comercial',tags:['materiais','downloads'],html:'<div class="resource-links"><a href="/catalogo-grupo-abr.pdf" target="_blank" rel="noopener"><b>Catálogo Grupo ABR</b><span>Produtos e especificações</span></a><a href="/experta%C3%A7o.png" download><b>Marca Expertaço</b><span>Arquivo de identidade</span></a><a href="#portfolio"><b>Portfólio navegável</b><span>Links diretos por família</span></a></div>'},
-    {id:'ideaaco-form',section:'ideaaco',audience:'todos',title:'Sua ideia pode virar aço',tags:['ideias','melhoria'],html:'<div class="idea-intro"><b>Observe. Questione. Sugira. Construa.</b><p>Compartilhe uma ideia, notícia, oportunidade, sugestão ou crítica construtiva.</p></div><form id="ideaForm" class="idea-form"><label>Seu nome<input name="name" required></label><label>Categoria<select name="category"><option>Ideia</option><option>Oportunidade</option><option>Novo produto</option><option>Notícia</option><option>Sugestão</option><option>Crítica construtiva</option></select></label><label class="full">Título<input name="title" required></label><label class="full">Conte sua ideia<textarea name="message" rows="5" required></textarea></label><button class="button primary" type="submit">Salvar contribuição</button><small class="full">Nesta etapa, o rascunho fica salvo neste navegador. A sincronização com AppSheet será o próximo conector.</small></form>'}
+    {id:'ideaaco-form',section:'ideaaco',audience:'todos',title:'Sua ideia pode virar aço',tags:['ideias','melhoria'],html:'<div class="idea-intro"><b>Observe. Questione. Sugira. Construa.</b><p>Compartilhe uma ideia, notícia, oportunidade, sugestão ou crítica construtiva.</p></div><form id="ideaForm" class="idea-form"><label>Seu nome<input name="name" required autocomplete="name"></label><label>Seu e-mail<input name="email" type="email" autocomplete="email" placeholder="opcional"></label><label>Categoria<select name="category"><option>Ideia</option><option>Oportunidade</option><option>Novo produto</option><option>Notícia</option><option>Sugestão</option><option>Crítica construtiva</option></select></label><label class="full">Título<input name="title" required></label><label class="full">Conte sua ideia<textarea name="message" rows="5" required></textarea></label><input class="idea-honeypot" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"><button class="button primary" type="submit">Enviar contribuição</button><small class="full">A mensagem será enviada ao canal do #IdeAÇO e às lideranças responsáveis.</small></form>'}
   );
   var pct=function(x){return Number(x.targetAmount)>0?Number(x.salesAmount||0)/Number(x.targetAmount)*100:null;};
   var top=function(items){return (items||[]).map(function(x){return Object.assign({},x,{score:pct(x)});}).filter(function(x){return x.score!==null;}).sort(function(a,b){return b.score-a.score;}).slice(0,3);};
@@ -36,5 +36,19 @@
   fetch('/api/ranking').then(function(r){return r.json();}).then(setupHero).catch(function(){setupHero({sellers:[],teams:[]});});
   setInterval(function(){if(!slides.length)return;current=(current+1)%slides.length;paint(current);},9000);
   renderNav();renderContent();observeSections();
-  document.addEventListener('submit',function(e){if(e.target.id!=='ideaForm')return;e.preventDefault();var values=Object.fromEntries(new FormData(e.target).entries());var saved=JSON.parse(localStorage.getItem('ideaaco-drafts')||'[]');saved.push(Object.assign({createdAt:new Date().toISOString()},values));localStorage.setItem('ideaaco-drafts',JSON.stringify(saved));e.target.reset();toast('Contribuição salva como rascunho.');});
+  document.addEventListener('submit',async function(e){
+    if(e.target.id!=='ideaForm')return;
+    e.preventDefault();
+    var form=e.target,button=form.querySelector('button[type="submit"]'),values=Object.fromEntries(new FormData(form).entries());
+    button.disabled=true;button.textContent='Enviando...';
+    try{
+      var response=await fetch('/api/ideaaco',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(values)});
+      var result=await response.json();
+      if(!response.ok)throw new Error(result.error||'Não foi possível enviar.');
+      form.reset();toast('Ideia enviada com sucesso. Obrigado por contribuir!');
+    }catch(error){
+      var saved=JSON.parse(localStorage.getItem('ideaaco-drafts')||'[]');saved.push(Object.assign({createdAt:new Date().toISOString()},values));localStorage.setItem('ideaaco-drafts',JSON.stringify(saved));
+      toast(error.message+' Uma cópia ficou salva neste navegador.');
+    }finally{button.disabled=false;button.textContent='Enviar contribuição';}
+  });
 })();

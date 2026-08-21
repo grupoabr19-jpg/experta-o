@@ -23,3 +23,7 @@ services:
         sync: false
       - key: KOMMO_AUTH_TOKEN
         sync: false
+      - key: IDEAACO_EMAIL_USER
+        sync: false
+      - key: IDEAACO_EMAIL_APP_PASSWORD
+        sync: false

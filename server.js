@@ -58,6 +58,40 @@ function parseBody(req) {
   });
 }
 
+const ideaRecipients = {
+  to: 'grupoabr19@gmail.com',
+  cc: ['thiago.almeida@grupoabr.com.br', 'marcelo.silva@grupoabr.com.br', 'anderson.silva@grupoabr.com.br', 'pietra.leite@grupoabr.com.br']
+};
+const ideaRateLimit = new Map();
+const cleanText = (value, max) => typeof value === 'string' ? value.trim().slice(0, max) : '';
+const escapeHtml = value => value.replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[character]);
+
+function ideaMailTransport() {
+  const user = process.env.IDEAACO_EMAIL_USER;
+  const pass = process.env.IDEAACO_EMAIL_APP_PASSWORD;
+  if (!user || !pass) return null;
+  const nodemailer = require('nodemailer');
+  return nodemailer.createTransport({ service:'gmail', auth:{ user, pass } });
+}
+
+function ideaRequestAllowed(req) {
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const now = Date.now();
+  const recent = (ideaRateLimit.get(ip) || []).filter(timestamp => now - timestamp < 10 * 60 * 1000);
+  if (recent.length >= 3) return false;
+  recent.push(now); ideaRateLimit.set(ip, recent); return true;
+}
+
+async function sendIdeaMessage(input) {
+  const transport = ideaMailTransport();
+  if (!transport) throw new Error('IDEAACO_EMAIL_NOT_CONFIGURED');
+  const name=cleanText(input.name,120),email=cleanText(input.email,180),category=cleanText(input.category,80),title=cleanText(input.title,180),message=cleanText(input.message,5000);
+  if (!name || !category || !title || !message) throw new Error('IDEAACO_INVALID');
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('IDEAACO_INVALID');
+  const subject=`[#IdeAÇO] ${category}: ${title}`;
+  const html=`<h2>Nova contribuição para o #IdeAÇO</h2><p><b>Nome:</b> ${escapeHtml(name)}</p><p><b>E-mail:</b> ${escapeHtml(email||'Não informado')}</p><p><b>Categoria:</b> ${escapeHtml(category)}</p><p><b>Título:</b> ${escapeHtml(title)}</p><p><b>Mensagem:</b></p><p style="white-space:pre-wrap">${escapeHtml(message)}</p>`;
+  await transport.sendMail({ from:`Expertaço — #IdeAÇO <${process.env.IDEAACO_EMAIL_USER}>`, to:ideaRecipients.to, cc:ideaRecipients.cc, replyTo:email||undefined, subject, text:`Nova contribuição para o #IdeAÇO\n\nNome: ${name}\nE-mail: ${email||'Não informado'}\nCategoria: ${category}\nTítulo: ${title}\n\n${message}`, html });
+}
 function serveFile(req, res) {
   const requested = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
   if (requested === '/expertaço.png') {
@@ -77,7 +111,20 @@ function serveFile(req, res) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/api/health') return send(res, 200, { status: 'ok', mode, timestamp: new Date().toISOString() });
-  if (url.pathname === '/api/ranking' && req.method === 'GET') {
+  if (url.pathname === '/api/ideaaco' && req.method === 'POST') {
+    if (!ideaRequestAllowed(req)) return send(res, 429, { error:'Muitas mensagens em pouco tempo. Aguarde alguns minutos.' });
+    try {
+      const body = await parseBody(req);
+      if (body.website) return send(res, 202, { sent:true });
+      await sendIdeaMessage(body);
+      return send(res, 202, { sent:true });
+    } catch (error) {
+      if (error.message === 'IDEAACO_INVALID') return send(res, 400, { error:'Confira os campos obrigatórios e tente novamente.' });
+      if (error.message === 'IDEAACO_EMAIL_NOT_CONFIGURED') return send(res, 503, { error:'O canal de e-mail ainda não foi ativado.' });
+      console.error('Falha no envio #IdeAÇO:', error.message);
+      return send(res, 502, { error:'Não foi possível enviar agora. Tente novamente em instantes.' });
+    }
+  }  if (url.pathname === '/api/ranking' && req.method === 'GET') {
     try { return send(res, 200, await getRanking()); }
     catch (error) { return send(res, 502, { error: 'Não foi possível atualizar o ranking.', fallbackAvailable: true }); }
   }

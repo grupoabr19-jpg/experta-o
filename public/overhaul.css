@@ -138,3 +138,5 @@ body[data-route="ideaaco"] .section-heading h1{font-size:clamp(48px,7vw,76px);fo
 .sidebar .nav-divider{display:block;margin:14px 12px 5px;color:#7785b4;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
 .sidebar .nav-external span:last-child{color:var(--orange);font-size:14px}
 .card[id]{scroll-margin-top:calc(var(--ticker) + var(--header) + 24px)}
+.idea-honeypot{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+.idea-form button:disabled{opacity:.65;cursor:wait}

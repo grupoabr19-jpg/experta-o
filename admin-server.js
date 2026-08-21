@@ -25,7 +25,7 @@ module.exports = function createAdminApi({ db, authenticatedUser, ensureProfile,
       const result = await db().query('SELECT resource,access_level FROM public.area_permissions WHERE area_id=$1', [profile.area_id]);
       result.rows.forEach(item => { permissions[item.resource] = item.access_level; });
     }
-    const areaSlug = profile.area_id ? (await db().query('SELECT slug FROM public.portal_areas WHERE id=', [profile.area_id])).rows[0]?.slug || '' : '';
+    const areaSlug = profile.area_id ? (await db().query('SELECT slug FROM public.portal_areas WHERE id=$1', [profile.area_id])).rows[0]?.slug || '' : '';
     return { user, profile, permissions: effectivePermissions(permissions, areaSlug) };
   }
   function allowed(ctx, resource, level = 'view') {

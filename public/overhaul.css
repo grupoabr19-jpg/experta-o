@@ -1,12 +1,14 @@
 :root{--ticker:44px;--sidebar:272px}
 body{font-size:16px;line-height:1.55}
 .ticker{height:44px;font-size:12px}
-.ticker-track{gap:56px;animation-duration:150s}
+.ticker-track{gap:56px;animation-duration:300s}
 .ticker-window:hover .ticker-track,.ticker-window:focus-within .ticker-track{animation-play-state:paused}
 .ticker-item{gap:10px;padding-inline:8px}
 .sidebar{padding:24px 14px}.sidebar nav{gap:6px}
 .sidebar a{min-height:46px;padding:12px 14px;font-size:12px;line-height:1.25}
-.sidebar a .nav-label{display:block;width:100%;text-align:left}
+.sidebar nav a>.nav-label{display:block;width:auto;flex:1;text-align:left;font-size:12px;line-height:1.25}
+.sidebar nav{overflow-y:auto;scrollbar-width:none}
+.sidebar nav::-webkit-scrollbar{display:none}
 .sidebar a.active{background:rgba(255,255,255,.12);box-shadow:inset 4px 0 var(--orange)}
 .content-section{max-width:1180px}
 .route-page{min-height:calc(100vh - var(--ticker) - var(--header));padding:64px 48px 90px}
@@ -37,6 +39,7 @@ body{font-size:16px;line-height:1.55}
 body:not([data-route="visao"]) .quick-panel{margin-top:0;border-radius:0;max-width:none;box-shadow:none;border-bottom:1px solid var(--line)}
 body:not([data-route="visao"]) #searchSummary{max-width:1180px}
 body.dark .section-heading h1,body.dark .card h2{color:#fff}
+[hidden]{display:none!important}
 
 @media(max-width:1000px){
   .card{grid-column:1/-1}
@@ -70,12 +73,14 @@ body.dark .section-heading h1,body.dark .card h2{color:#fff}
   .topbar{height:62px}
   .brand img{width:58px;height:38px}.brand span{display:none}
   .header-actions{gap:2px}
+  body{overflow-x:hidden}
+  main,.route-page,#playbookContent{width:100%;max-width:100%;overflow-x:hidden}
   .route-page{padding:34px 16px 60px}
   .section-heading{padding-bottom:20px;margin-bottom:20px}
   .section-heading h1{font-size:32px}
   .section-heading>p{font-size:14px}
   .grid{display:block}
-  .card{padding:22px 18px;margin-bottom:16px;border-radius:12px}
+  .card{width:100%;max-width:100%;padding:22px 18px;margin-bottom:16px;border-radius:12px;overflow:hidden}
   .card h2{max-width:calc(100% - 74px);font-size:19px}
   .card p,.card li,.script{font-size:14px!important;line-height:1.7!important}
   .card-tools{right:12px;top:12px}
@@ -94,6 +99,12 @@ body.dark .section-heading h1,body.dark .card h2{color:#fff}
   .hero-podium span{font-size:17px}.hero-podium strong{font-size:15px}
   .hero-actions{position:relative;z-index:4}
   .hero-controls{bottom:20px;left:20px}
+  .quick-panel{width:100%;max-width:100%;margin:0;padding:14px 16px}
+  .quick-panel>div:first-child{width:100%;min-width:0}
+  #searchInput{min-width:0}
+  .filters{width:100%;max-width:100%;padding-bottom:3px;overflow-x:auto;scrollbar-width:none}
+  .filters::-webkit-scrollbar{display:none}
+  .filters button{flex:0 0 auto}
   .leadership{display:block}.leadership span{margin-bottom:10px}
   .route-list{display:block}.route-list>div{margin-bottom:12px}
   .ranking-table{margin-inline:-18px;padding-inline:18px}

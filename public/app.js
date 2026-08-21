@@ -81,4 +81,4 @@ async function loadRanking(){
 }
 function observeSections(){const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){document.querySelectorAll('#sideNav a').forEach(a=>a.classList.toggle('active',a.dataset.section===entry.target.id));}}),{rootMargin:'-25% 0px -65%'});document.querySelectorAll('.playbook-section').forEach(s=>observer.observe(s));}
 
-renderNav();renderContent();setupControls();loadRanking();observeSections();document.querySelector('#refreshRanking').onclick=()=>{loadRanking();toast('Ranking atualizado.')};setInterval(()=>loadRanking(),300000);
+renderNav();renderContent();setupControls();observeSections();document.querySelector('#refreshRanking').onclick=()=>{loadRanking();toast('Ranking atualizado.')};

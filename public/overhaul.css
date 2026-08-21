@@ -1,7 +1,7 @@
 :root{--ticker:44px;--sidebar:272px}
 body{font-size:16px;line-height:1.55}
 .ticker{height:44px;font-size:12px}
-.ticker-track{gap:56px;animation-duration:300s}
+.ticker-track{gap:56px;animation-duration:180s}
 .ticker-window:hover .ticker-track,.ticker-window:focus-within .ticker-track{animation-play-state:paused}
 .ticker-item{gap:10px;padding-inline:8px}
 .sidebar{padding:24px 14px}.sidebar nav{gap:6px}

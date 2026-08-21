@@ -31,6 +31,22 @@ async function personalizedCard(template,person,fallbackPath){
 }
 function emailHtml(person,type,template,hasCard){const visual=hasCard?'<img src="cid:celebration-card" width="600" alt="Cartão comemorativo de '+clean(person.display_name)+'" style="display:block;width:100%;height:auto">':'<img src="cid:expertaco-logo" width="170" alt="Intranet #ParceirAÇO · Grupo ABR"><img src="cid:profile-photo" width="160" height="160" alt="Foto de '+clean(person.display_name)+'" style="display:block;width:160px;height:160px;object-fit:cover;border-radius:50%;margin:26px auto 18px;border:6px solid #eef1f8">';return `<!doctype html><html><body style="margin:0;background:#f3f5fa;font-family:Arial,sans-serif;color:#1b2440"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="600" style="max-width:600px;background:#fff;border-radius:18px;overflow:hidden"><tr><td style="height:8px;background:#f18800"></td></tr><tr><td align="center">${visual}</td></tr><tr><td align="center" style="padding:28px 34px 12px"><p style="margin:0;color:#f18800;font-size:12px;font-weight:bold;letter-spacing:1.5px">${type==='birthday'?'ANIVERSÁRIO':'ANIVERSÁRIO DE EMPRESA'}</p><h1 style="margin:10px 0 6px;color:#253575;font-size:30px">${clean(tokens(template.headline,person))}</h1><h2 style="margin:0 0 22px;color:#253575;font-size:22px">${clean(person.display_name)}</h2><div style="font-size:16px;line-height:1.7;color:#4f5873">${tokens(template.message_html,person)}</div></td></tr><tr><td align="center" style="padding:20px 34px 32px;color:#7a8298;font-size:12px">Uma mensagem do Grupo ABR · #ParceirAÇO</td></tr></table></td></tr></table></body></html>`;}
 
+async function sendCelebrationTest({recipient,userId,type='birthday'}){
+ const {Pool}=require('pg'),nodemailer=require('nodemailer');
+ const user=process.env.IDEAACO_EMAIL_USER,pass=process.env.IDEAACO_EMAIL_APP_PASSWORD;if(!process.env.DATABASE_URL||!user||!pass)throw new Error('Configuração de e-mail indisponível.');
+ const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false},max:2});
+ try{
+  await ensureImageColumns(pool);const year=currentYear(),logo=path.join(__dirname,'..','expertaço.png');
+  const person=(await pool.query(`SELECT user_id,email,display_name,photo_data,photo_mime,CASE WHEN hire_date IS NULL THEN 0 ELSE EXTRACT(YEAR FROM age((now() AT TIME ZONE 'America/Sao_Paulo')::date,hire_date))::int END years FROM public.user_profiles WHERE user_id=$1 AND active=true`,[userId])).rows[0];
+  if(!person)throw new Error('Perfil de teste não encontrado.');
+  const template=(await pool.query('SELECT event_type,subject_template,headline,message_html,image_base,image_mime,photo_x_pct,photo_y_pct,photo_size_pct FROM public.celebration_email_templates WHERE event_type=$1 AND template_year=$2 AND active=true',[type,year])).rows[0];
+  if(!template?.image_base)throw new Error('Salve uma imagem-base ativa antes do teste.');
+  const card=await personalizedCard(template,person,logo);if(!card)throw new Error('Não foi possível gerar o cartão.');
+  const transport=nodemailer.createTransport({service:'gmail',auth:{user,pass}});
+  await transport.sendMail({from:`Intranet #ParceirAÇO · Grupo ABR <${user}>`,to:recipient,subject:'[TESTE] '+tokens(template.subject_template,person),html:emailHtml(person,type,template,true),attachments:[{filename:'cartao-personalizado.jpg',content:card,contentType:'image/jpeg',cid:'celebration-card'}]});
+  return {sent:true,recipient,type};
+ }finally{await pool.end();}
+}
 async function sendCelebrations(){
  const {Pool}=require('pg'),nodemailer=require('nodemailer');
  const user=process.env.IDEAACO_EMAIL_USER,pass=process.env.IDEAACO_EMAIL_APP_PASSWORD;if(!process.env.DATABASE_URL||!user||!pass)throw new Error('DATABASE_URL e credenciais de e-mail são obrigatórias.');
@@ -53,4 +69,4 @@ async function sendCelebrations(){
  }finally{await pool.end();}
 }
 if(require.main===module)sendCelebrations().catch(error=>{console.error(error.message);process.exitCode=1;});
-module.exports={sendCelebrations,personalizedCard};
+module.exports={sendCelebrations,sendCelebrationTest,personalizedCard};

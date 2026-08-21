@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const createAdminApi = require('./admin-server');
-const { sendCelebrations } = require('./scripts/send-celebrations');
+const { sendCelebrations, sendCelebrationTest } = require('./scripts/send-celebrations');
 const { rankingFromCsv } = require('./csv-ranking-sheets');
 
 const root = __dirname;
@@ -189,7 +189,14 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/admin/areas') { try{return await adminApi.areas(req,res);}catch(error){console.error('Falha nas áreas:',error.message);return send(res,502,{error:'Não foi possível gerenciar as áreas.'});} }
   if (url.pathname === '/api/admin/users') { try{return await adminApi.users(req,res);}catch(error){console.error('Falha nos perfis:',error.message);return send(res,502,{error:'Não foi possível gerenciar os perfis.'});} }
   if (url.pathname === '/api/admin/feed') { try{return await adminApi.moderateFeed(req,res);}catch(error){console.error('Falha na moderação:',error.message);return send(res,502,{error:'Não foi possível moderar o feed.'});} }
-  if (url.pathname === '/api/celebration-templates') { try{return await adminApi.celebrationTemplates(req,res);}catch(error){console.error('Falha nos templates:',error.message);return send(res,502,{error:'Não foi possível acessar os templates.'});} }
+  if (url.pathname === '/api/celebration-test' && req.method === 'POST') {
+    try {
+      const ctx=await adminApi.authorize(req,res,'celebration_templates','manage');if(!ctx)return;
+      const input=await parseBody(req),recipient='grupoabr19@gmail.com',type=cleanText(input.type,24);
+      if(!['birthday','work_anniversary'].includes(type))return send(res,400,{error:'Modelo de teste inválido.'});
+      return send(res,200,await sendCelebrationTest({recipient,userId:ctx.user.id,type}));
+    } catch(error){console.error('Falha no teste comemorativo:',error.message);return send(res,502,{error:error.message||'Não foi possível enviar o teste.'});}
+  }  if (url.pathname === '/api/celebration-templates') { try{return await adminApi.celebrationTemplates(req,res);}catch(error){console.error('Falha nos templates:',error.message);return send(res,502,{error:'Não foi possível acessar os templates.'});} }
   if (url.pathname === '/api/announcements') { try{return await adminApi.announcements(req,res,url);}catch(error){console.error('Falha nos comunicados:',error.message);return send(res,502,{error:'Não foi possível acessar os comunicados.'});} }  if (url.pathname === '/api/profile/photo' && req.method === 'GET') { try{return await handleProfilePhoto(req,res,url);}catch(error){console.error('Falha na foto:',error.message);return send(res,502,{error:'Não foi possível carregar a foto.'});} }
   if (url.pathname === '/api/profile') { try{return await handleProfile(req,res);}catch(error){console.error('Falha no perfil:',error.message);return send(res,502,{error:'Não foi possível acessar o perfil agora.'});} }
   if (url.pathname === '/api/feed') { try{return await handleFeed(req,res);}catch(error){console.error('Falha no feed:',error.message);return send(res,502,{error:'Não foi possível acessar o feed agora.'});} }  if (url.pathname.startsWith('/api/auth/')) {

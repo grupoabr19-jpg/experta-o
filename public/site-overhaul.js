@@ -14,7 +14,7 @@
       link('visao','Visão geral')+
       link('regras','Regras de ouro')+
       link('portfolio','Portfólio')+
-      '<details class="nav-group" '+(scriptsActive?'open':'')+'><summary class="'+(scriptsActive?'active':'')+'"><span>Scripts</span><span class="nav-chevron">⌄</span></summary><div class="nav-submenu">'+
+      '<details class="nav-group" '+(scriptsActive?'open':'')+'><summary class="'+(scriptsActive?'active':'')+'"><span>Playbook de Vendas</span><span class="nav-chevron">⌄</span></summary><div class="nav-submenu">'+
         '<a href="/prospeccao#script-operacional">Roteiro completo</a>'+
         '<a href="/prospeccao#abertura">Abertura da conversa</a>'+
         '<a href="/prospeccao#spin">Diagnóstico SPIN</a>'+
@@ -34,9 +34,10 @@
 
   renderContent=function(){
     const current=clean(route()),section=sections.find(s=>s.id===current),m=meta[current]||['',section.label,''];
+    const commercial=['prospeccao','followup','objecoes','fechamento','posvenda','crise'].includes(current);
     const sectionCards=cards.filter(c=>c.section===current&&visible(c));
     const host=document.querySelector('#playbookContent');
-    host.innerHTML='<section id="'+current+'" class="playbook-section content-section route-page"><header class="section-heading"><div><span class="section-kicker">PLAYBOOK EXPERTAÇO</span><h1>'+m[1]+'</h1></div><p>'+m[2]+'</p></header><div class="grid">'+sectionCards.map(card=>'<article class="card '+(card.script?'highlight':'')+'" id="'+card.id+'" data-id="'+card.id+'"><div class="card-tools"><button class="favorite-button '+(state.favorites.has(card.id)?'active':'')+'" aria-label="Favoritar '+card.title+'" title="Favoritar">★</button>'+(card.script?'<button class="copy-button" aria-label="Copiar '+card.title+'" title="Copiar script">Copiar</button>':'')+'</div><h2>'+card.title+'</h2><div class="card-body">'+card.html+'</div><footer>'+card.tags.map(t=>'<span class="tag">'+t+'</span>').join('')+'</footer></article>').join('')+'</div></section>';
+    host.innerHTML='<section id="'+current+'" class="playbook-section content-section route-page"><header class="section-heading"><div><span class="section-kicker">'+(commercial?'PLAYBOOK DE VENDAS':'INTRANET #PARCEIRAÇO')+'</span><h1>'+m[1]+'</h1></div><p>'+m[2]+'</p></header><div class="grid">'+sectionCards.map(card=>'<article class="card '+(card.script?'highlight':'')+'" id="'+card.id+'" data-id="'+card.id+'"><div class="card-tools"><button class="favorite-button '+(state.favorites.has(card.id)?'active':'')+'" aria-label="Favoritar '+card.title+'" title="Favoritar">★</button>'+(card.script?'<button class="copy-button" aria-label="Copiar '+card.title+'" title="Copiar script">Copiar</button>':'')+'</div><h2>'+card.title+'</h2><div class="card-body">'+card.html+'</div><footer>'+card.tags.map(t=>'<span class="tag">'+t+'</span>').join('')+'</footer></article>').join('')+'</div></section>';
     const summary=document.querySelector('#searchSummary');
     summary.hidden=!state.query&&state.filter==='todos';
     summary.textContent=sectionCards.length+' conteúdo'+(sectionCards.length===1?'':'s')+' encontrado'+(sectionCards.length===1?'':'s')+'.';
@@ -72,6 +73,6 @@
   const heroObserver=new MutationObserver(()=>document.querySelectorAll('#inicio a[href^="#"]').forEach(a=>a.href='/'+a.getAttribute('href').slice(1)));
   heroObserver.observe(document.querySelector('#inicio'),{childList:true,subtree:true});
   document.querySelector('.brand').href='/';
-  document.querySelector('.topnav').innerHTML='<a href="/">Início</a><a href="/prospeccao">Scripts</a><a href="/portfolio">Portfólio</a><a href="/ranking">Ranking</a><a href="/kommo">Kommo</a>';
+  document.querySelector('.topnav').innerHTML='<a href="/">Início</a><a href="/prospeccao">Playbook de Vendas</a><a href="/portfolio">Portfólio</a><a href="/ranking">Ranking</a><a href="/kommo">Kommo</a>';
   applyRoute();
 })();

@@ -1,11 +1,12 @@
 (function(){
+  var heroEsc=function(value){var node=document.createElement('div');node.textContent=String(value==null?'':value);return node.innerHTML;};
   var extra=[
     {id:'blog',icon:'N',label:'Blog e notícias'},
     {id:'marketing',icon:'M',label:'Materiais de marketing'},
     {id:'ideaaco',icon:'I',label:'#IdeAÇO'}
   ];
   extra.reverse().forEach(function(item){if(!sections.some(function(s){return s.id===item.id;}))sections.splice(2,0,item);});
-  meta.blog=['','Blog Expertaço','Notícias, produtos, campanhas e informações úteis para a equipe comercial.'];
+  meta.blog=['','Blog #ParceirAÇO','Notícias, produtos, campanhas e informações úteis para a equipe comercial.'];
   meta.marketing=['','Materiais de marketing','Links oficiais para catálogos, marcas e materiais de apoio comercial.'];
   meta.ideaaco=['','#IdeAÇO','Um canal para notícias, sugestões, críticas construtivas e, principalmente, novas ideias.'];
   cards.push(
@@ -30,11 +31,18 @@
       {topic:'noticias',ranking:false,html:'<div class="eyebrow">INTELIGÊNCIA PARA VENDER</div><h1>Informação que vira<br><span>boa conversa.</span></h1><p>Notícias de mercado, novos produtos, campanhas, oportunidades regionais e boas práticas da equipe.</p><div class="hero-actions"><a class="button primary" href="#blog">Abrir o blog →</a><a class="button secondary" href="#marketing">Materiais de marketing</a></div>'},
       {topic:'ideaaco',ranking:false,html:'<div class="eyebrow idea-signature">#IdeAÇO</div><h1>Boas ideias também<br><span>constroem resultados.</span></h1><p>Envie sugestões, oportunidades, notícias e críticas construtivas. A proposta principal é transformar observações em ideias que possam ser testadas.</p><div class="hero-actions"><a class="button primary" href="#ideaaco">Compartilhar uma ideia →</a></div>'}
     ];
+    fetch('/api/announcements?public=1').then(function(response){return response.ok?response.json():{announcements:[]};}).then(function(result){
+      (result.announcements||[]).slice(0,3).forEach(function(item){slides.push({topic:'comunicado-rh',ranking:false,html:'<div class="eyebrow">COMUNICADO INTERNO · RH</div><h1>'+heroEsc(item.title)+'</h1>'+(item.subtitle?'<h2 class="hero-subtitle">'+heroEsc(item.subtitle)+'</h2>':'')+'<p>'+heroEsc(item.body)+'</p><div class="hero-actions"><a class="button primary" href="'+heroEsc(item.url)+'" target="_blank" rel="noopener">Ler comunicado completo →</a></div><small class="hero-validity">Disponível até '+new Date(item.expires_at).toLocaleDateString('pt-BR')+'</small>'});});
+      paint(current%slides.length);
+    }).catch(function(){
+  var heroEsc=function(value){var node=document.createElement('div');node.textContent=String(value==null?'':value);return node.innerHTML;};});
     paint(0);
   }
   var current=0;
-  fetch('/api/ranking').then(function(r){return r.json();}).then(setupHero).catch(function(){setupHero({sellers:[],teams:[]});});
-  setInterval(function(){if(!slides.length)return;current=(current+1)%slides.length;paint(current);},9000);
+  fetch('/api/ranking?channel=ranking').then(function(r){return r.json();}).then(setupHero).catch(function(){
+  var heroEsc=function(value){var node=document.createElement('div');node.textContent=String(value==null?'':value);return node.innerHTML;};setupHero({sellers:[],teams:[]});});
+  setInterval(function(){
+  var heroEsc=function(value){var node=document.createElement('div');node.textContent=String(value==null?'':value);return node.innerHTML;};if(!slides.length)return;current=(current+1)%slides.length;paint(current);},9000);
   renderNav();renderContent();observeSections();
   document.addEventListener('submit',async function(e){
     if(e.target.id!=='ideaForm')return;

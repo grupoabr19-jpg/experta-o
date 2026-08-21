@@ -2,6 +2,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const createAdminApi = require('./admin-server');
+const { sendCelebrations } = require('./scripts/send-celebrations');
 const { rankingFromCsv } = require('./csv-ranking-sheets');
 
 const root = __dirname;
@@ -49,10 +51,10 @@ function authorized(req) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function parseBody(req) {
+function parseBody(req, maxBytes = 250000) {
   return new Promise((resolve, reject) => {
     let raw = '';
-    req.on('data', chunk => { raw += chunk; if (raw.length > 250000) req.destroy(); });
+    req.on('data', chunk => { raw += chunk; if (raw.length > maxBytes) req.destroy(); });
     req.on('end', () => { try { resolve(JSON.parse(raw || '{}')); } catch { reject(new Error('JSON inválido')); } });
     req.on('error', reject);
   });
@@ -90,7 +92,7 @@ async function sendIdeaMessage(input) {
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('IDEAACO_INVALID');
   const subject=`[#IdeAÇO] ${category}: ${title}`;
   const html=`<h2>Nova contribuição para o #IdeAÇO</h2><p><b>Nome:</b> ${escapeHtml(name)}</p><p><b>E-mail:</b> ${escapeHtml(email||'Não informado')}</p><p><b>Categoria:</b> ${escapeHtml(category)}</p><p><b>Título:</b> ${escapeHtml(title)}</p><p><b>Mensagem:</b></p><p style="white-space:pre-wrap">${escapeHtml(message)}</p>`;
-  await transport.sendMail({ from:`Expertaço — #IdeAÇO <${process.env.IDEAACO_EMAIL_USER}>`, to:ideaRecipients.to, cc:ideaRecipients.cc, replyTo:email||undefined, subject, text:`Nova contribuição para o #IdeAÇO\n\nNome: ${name}\nE-mail: ${email||'Não informado'}\nCategoria: ${category}\nTítulo: ${title}\n\n${message}`, html });
+  await transport.sendMail({ from:`Intranet #ParceirAÇO — #IdeAÇO <${process.env.IDEAACO_EMAIL_USER}>`, to:ideaRecipients.to, cc:ideaRecipients.cc, replyTo:email||undefined, subject, text:`Nova contribuição para o #IdeAÇO\n\nNome: ${name}\nE-mail: ${email||'Não informado'}\nCategoria: ${category}\nTítulo: ${title}\n\n${message}`, html });
 }
 const neonAuthBaseUrl = process.env.NEON_AUTH_BASE_URL || '';
 const corporateEmail = email => typeof email === 'string' && /^[^\s@]+@grupoabr\.com\.br$/i.test(email.trim());
@@ -139,8 +141,29 @@ async function authenticatedUser(req) {
 }
 const safeUrl=value=>{const url=cleanText(value,500);if(!url)return'';try{const parsed=new URL(url);return ['http:','https:'].includes(parsed.protocol)?parsed.toString():'';}catch{return'';}};
 async function ensureProfile(user){const result=await db().query(`INSERT INTO public.user_profiles(user_id,email,display_name) VALUES($1,$2,$3) ON CONFLICT(user_id) DO UPDATE SET email=EXCLUDED.email RETURNING *`,[user.id,user.email,user.name]);return result.rows[0];}
-async function handleProfile(req,res){const user=await authenticatedUser(req);if(!user)return send(res,401,{error:'Faça login para acessar seu perfil.'});if(req.method==='GET')return send(res,200,await ensureProfile(user));if(req.method==='PUT'){const input=await parseBody(req),name=cleanText(input.displayName,120),bio=cleanText(input.bio,301);if(!name||bio.length>300)return send(res,400,{error:'Confira o nome e o limite de 300 caracteres da bio.'});await ensureProfile(user);const result=await db().query(`UPDATE public.user_profiles SET display_name=$2,bio=$3,linkedin_url=$4,instagram_url=$5,facebook_url=$6,updated_at=now() WHERE user_id=$1 RETURNING *`,[user.id,name,bio,safeUrl(input.linkedinUrl),safeUrl(input.instagramUrl),safeUrl(input.facebookUrl)]);return send(res,200,result.rows[0]);}return send(res,405,{error:'Método não permitido.'});}
-async function handleFeed(req,res){const user=await authenticatedUser(req);if(!user)return send(res,401,{error:'Faça login para acessar o feed.'});await ensureProfile(user);if(req.method==='GET'){const result=await db().query(`SELECT p.id,p.content,p.created_at,p.user_id,u.display_name,u.bio,u.linkedin_url,u.instagram_url,u.facebook_url FROM public.feed_posts p JOIN public.user_profiles u ON u.user_id=p.user_id ORDER BY p.created_at DESC LIMIT 60`);return send(res,200,{posts:result.rows});}if(req.method==='POST'){const input=await parseBody(req),content=cleanText(input.content,501);if(!content||content.length>500)return send(res,400,{error:'A publicação deve ter entre 1 e 500 caracteres.'});const result=await db().query(`INSERT INTO public.feed_posts(user_id,content) VALUES($1,$2) RETURNING id,content,created_at,user_id`,[user.id,content]);return send(res,201,result.rows[0]);}return send(res,405,{error:'Método não permitido.'});}
+function publicProfile(row){const {photo_data,photo_mime,...profile}=row;return {...profile,has_photo:Boolean(photo_data),photo_url:photo_data?`/api/profile/photo?id=${encodeURIComponent(row.user_id)}`:''};}
+function jpegDimensions(buffer){let offset=2;while(offset<buffer.length){if(buffer[offset]!==0xff){offset++;continue;}const marker=buffer[offset+1];const length=buffer.readUInt16BE(offset+2);if([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf].includes(marker))return{height:buffer.readUInt16BE(offset+5),width:buffer.readUInt16BE(offset+7)};offset+=2+length;}return null;}
+function decodeProfilePhoto(value){if(!value)return null;const match=String(value).match(/^data:(image\/jpeg);base64,([A-Za-z0-9+/=]+)$/);if(!match)throw new Error('PHOTO_INVALID');const buffer=Buffer.from(match[2],'base64');if(!buffer.length||buffer.length>650000)throw new Error('PHOTO_INVALID');const size=jpegDimensions(buffer);if(!size||size.width!==400||size.height!==400)throw new Error('PHOTO_DIMENSIONS');return{buffer,mime:match[1]};}
+async function handleProfile(req,res){
+  const user=await authenticatedUser(req);if(!user)return send(res,401,{error:'Faça login para acessar seu perfil.'});
+  if(req.method==='GET')return send(res,200,publicProfile(await ensureProfile(user)));
+  if(req.method==='PUT'){
+    const input=await parseBody(req,1200000),name=cleanText(input.displayName,120),bio=cleanText(input.bio,301),mood=cleanText(input.mood,81),birthDate=cleanText(input.birthDate,10),hireDate=cleanText(input.hireDate,10);
+    if(!name||bio.length>300||mood.length>80||!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)||!/^\d{4}-\d{2}-\d{2}$/.test(hireDate))return send(res,400,{error:'Nome, aniversário e data de entrada são obrigatórios. Confira também os limites do perfil.'});
+    if(new Date(birthDate+'T12:00:00Z')>new Date()||new Date(hireDate+'T12:00:00Z')>new Date())return send(res,400,{error:'As datas do perfil não podem estar no futuro.'});
+    let photo=null;try{photo=decodeProfilePhoto(input.photoData);}catch(error){return send(res,400,{error:error.message==='PHOTO_DIMENSIONS'?'A foto precisa ter exatamente 400 × 400 pixels.':'Envie uma foto JPG válida de até 650 KB.'});}
+    await ensureProfile(user);
+    const values=[user.id,name,bio,safeUrl(input.linkedinUrl),safeUrl(input.instagramUrl),safeUrl(input.facebookUrl),mood,birthDate,hireDate];
+    let query=`UPDATE public.user_profiles SET display_name=$2,bio=$3,linkedin_url=$4,instagram_url=$5,facebook_url=$6,mood=$7,birth_date=$8,hire_date=$9,updated_at=now()`;
+    if(photo){values.push(photo.buffer,photo.mime);query+=`,photo_data=$10,photo_mime=$11`;}
+    query+=` WHERE user_id=$1 RETURNING *`;const result=await db().query(query,values);return send(res,200,publicProfile(result.rows[0]));
+  }
+  return send(res,405,{error:'Método não permitido.'});
+}
+async function handleProfilePhoto(req,res,url){const viewer=await authenticatedUser(req);if(!viewer)return send(res,401,{error:'Faça login.'});const userId=cleanText(url.searchParams.get('id'),180);const result=await db().query('SELECT photo_data,photo_mime FROM public.user_profiles WHERE user_id=$1 AND active=true',[userId]);const photo=result.rows[0];if(!photo?.photo_data)return send(res,404,{error:'Foto não encontrada.'});res.writeHead(200,{'Content-Type':photo.photo_mime,'Cache-Control':'private, max-age=3600','Content-Length':photo.photo_data.length});res.end(photo.photo_data);}
+async function handleFeed(req,res){const user=await authenticatedUser(req);if(!user)return send(res,401,{error:'Faça login para acessar o feed.'});await ensureProfile(user);if(req.method==='GET'){const result=await db().query(`SELECT p.id,p.content,p.created_at,p.user_id,u.display_name,u.bio,u.linkedin_url,u.instagram_url,u.facebook_url,u.photo_data IS NOT NULL AS has_photo FROM public.feed_posts p JOIN public.user_profiles u ON u.user_id=p.user_id WHERE p.hidden_at IS NULL ORDER BY p.created_at DESC LIMIT 60`);return send(res,200,{posts:result.rows});}if(req.method==='POST'){const input=await parseBody(req),content=cleanText(input.content,501);if(!content||content.length>500)return send(res,400,{error:'A publicação deve ter entre 1 e 500 caracteres.'});const result=await db().query(`INSERT INTO public.feed_posts(user_id,content) VALUES($1,$2) RETURNING id,content,created_at,user_id`,[user.id,content]);return send(res,201,result.rows[0]);}return send(res,405,{error:'Método não permitido.'});}
+const adminApi = createAdminApi({ db, authenticatedUser, ensureProfile, send, parseBody, cleanText, safeUrl });
+
 function serveFile(req, res) {
   const requested = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
   if (requested === '/expertaço.png') {
@@ -157,9 +180,17 @@ function serveFile(req, res) {
   fs.createReadStream(candidate).pipe(res);
 }
 
+let celebrationCheckAt=0,celebrationCheckRunning=false;
+async function maybeSendCelebrations(){const now=Date.now();if(celebrationCheckRunning||now-celebrationCheckAt<60*60*1000||!process.env.DATABASE_URL||!process.env.IDEAACO_EMAIL_USER||!process.env.IDEAACO_EMAIL_APP_PASSWORD)return;celebrationCheckAt=now;celebrationCheckRunning=true;try{await sendCelebrations();}catch(error){console.error('Falha na verificação de celebrações:',error.message);}finally{celebrationCheckRunning=false;}}
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  if (url.pathname === '/api/health') return send(res, 200, { status: 'ok', mode, timestamp: new Date().toISOString() });
+  if (url.pathname === '/api/health') { maybeSendCelebrations(); return send(res, 200, { status: 'ok', mode, timestamp: new Date().toISOString() }); }
+  if (url.pathname === '/api/access/me' && req.method === 'GET') { try{return await adminApi.me(req,res);}catch(error){console.error('Falha no acesso:',error.message);return send(res,502,{error:'Não foi possível consultar as permissões.'});} }
+  if (url.pathname === '/api/admin/areas') { try{return await adminApi.areas(req,res);}catch(error){console.error('Falha nas áreas:',error.message);return send(res,502,{error:'Não foi possível gerenciar as áreas.'});} }
+  if (url.pathname === '/api/admin/users') { try{return await adminApi.users(req,res);}catch(error){console.error('Falha nos perfis:',error.message);return send(res,502,{error:'Não foi possível gerenciar os perfis.'});} }
+  if (url.pathname === '/api/admin/feed') { try{return await adminApi.moderateFeed(req,res);}catch(error){console.error('Falha na moderação:',error.message);return send(res,502,{error:'Não foi possível moderar o feed.'});} }
+  if (url.pathname === '/api/celebration-templates') { try{return await adminApi.celebrationTemplates(req,res);}catch(error){console.error('Falha nos templates:',error.message);return send(res,502,{error:'Não foi possível acessar os templates.'});} }
+  if (url.pathname === '/api/announcements') { try{return await adminApi.announcements(req,res,url);}catch(error){console.error('Falha nos comunicados:',error.message);return send(res,502,{error:'Não foi possível acessar os comunicados.'});} }  if (url.pathname === '/api/profile/photo' && req.method === 'GET') { try{return await handleProfilePhoto(req,res,url);}catch(error){console.error('Falha na foto:',error.message);return send(res,502,{error:'Não foi possível carregar a foto.'});} }
   if (url.pathname === '/api/profile') { try{return await handleProfile(req,res);}catch(error){console.error('Falha no perfil:',error.message);return send(res,502,{error:'Não foi possível acessar o perfil agora.'});} }
   if (url.pathname === '/api/feed') { try{return await handleFeed(req,res);}catch(error){console.error('Falha no feed:',error.message);return send(res,502,{error:'Não foi possível acessar o feed agora.'});} }  if (url.pathname.startsWith('/api/auth/')) {
     const authRoute=url.pathname.slice('/api/auth/'.length);
@@ -179,7 +210,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 502, { error:'Não foi possível enviar agora. Tente novamente em instantes.' });
     }
   }  if (url.pathname === '/api/ranking' && req.method === 'GET') {
-    try { return send(res, 200, await getRanking()); }
+    try { const resource=url.searchParams.get('channel')==='ticker'?'ranking_ticker':'ranking';if(!await adminApi.authorize(req,res,resource,'view'))return;return send(res, 200, await getRanking()); }
     catch (error) { return send(res, 502, { error: 'Não foi possível atualizar o ranking.', fallbackAvailable: true }); }
   }
   if (url.pathname === '/api/ranking/manual' && req.method === 'POST') {
@@ -197,5 +228,4 @@ const server = http.createServer(async (req, res) => {
   serveFile(req, res);
 });
 
-if (require.main === module) server.listen(port, '0.0.0.0', () => console.log(`Playbook ABR disponível na porta ${port}`));
-module.exports = { server, validRanking };
+if (require.main === module) server.listen(port, '0.0.0.0', () => { console.log(`Intranet #ParceirAÇO disponível na porta ${port}`); setTimeout(maybeSendCelebrations,15000); setInterval(maybeSendCelebrations,6*60*60*1000).unref(); });module.exports = { server, validRanking };

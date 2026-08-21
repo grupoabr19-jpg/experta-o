@@ -1,4 +1,4 @@
-﻿{
+{
     "name":  "intranet-parceiraco-grupo-abr",
     "version":  "1.0.0",
     "private":  true,
@@ -17,6 +17,7 @@
                 },
     "dependencies":  {
                          "nodemailer":  "7.0.6",
-                         "pg":  "8.16.3"
+                         "pg":  "8.16.3",
+                         "sharp":  "0.34.3"
                      }
 }

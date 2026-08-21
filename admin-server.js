@@ -2,16 +2,20 @@ const PRIMARY_ADMIN_EMAIL = 'thiago.almeida@grupoabr.com.br';
 const ROLE_RANK = { member: 0, area_manager: 1, staff: 2, super_admin: 3 };
 const RESOURCES = ['commercial_content','ranking','scripts','sales_routes','hero_announcements','celebration_templates'];
 const LEVELS = { none: 0, view: 1, manage: 2 };
-const COMMERCIAL_AREA_SLUGS = new Set(['diretoria','gestao','coordenacao','marketing','vendas']);
+const FULL_ACCESS_AREA_SLUGS = new Set(['direcao','diretoria','coordenacao','supervisao','ti','gestao']);
+const SALES_AREA_SLUGS = new Set(['comercial','vendas']);
 function effectivePermissions(raw, areaSlug = '') {
-  const value = { ...raw };
-  if (!Object.prototype.hasOwnProperty.call(value, 'commercial_content')) value.commercial_content = COMMERCIAL_AREA_SLUGS.has(areaSlug) ? 'view' : 'none';
-  if (!Object.prototype.hasOwnProperty.call(value, 'ranking')) value.ranking = raw.ranking_ticker || 'none';
-  if (!Object.prototype.hasOwnProperty.call(value, 'scripts')) value.scripts = raw.project_war || raw.kommo || 'none';
-  if (!Object.prototype.hasOwnProperty.call(value, 'celebration_templates')) value.celebration_templates = areaSlug === 'rh' && raw.hero_announcements === 'manage' ? 'manage' : 'none';
-  return Object.fromEntries(RESOURCES.map(resource => [resource, value[resource] || 'none']));
+  const permissions = Object.fromEntries(RESOURCES.map(resource => [resource, 'none']));
+  const visibleResources = FULL_ACCESS_AREA_SLUGS.has(areaSlug)
+    ? ['commercial_content','ranking','scripts','sales_routes']
+    : SALES_AREA_SLUGS.has(areaSlug) ? ['commercial_content','ranking','scripts'] : [];
+  visibleResources.forEach(resource => { permissions[resource] = 'view'; });
+  for (const resource of ['hero_announcements','celebration_templates']) {
+    if (raw[resource] === 'manage') permissions[resource] = 'manage';
+  }
+  if (areaSlug === 'rh' && raw.hero_announcements === 'manage' && !raw.celebration_templates) permissions.celebration_templates = 'manage';
+  return permissions;
 }
-
 module.exports = function createAdminApi({ db, authenticatedUser, ensureProfile, send, parseBody, cleanText, safeUrl }) {
   async function context(req) {
     const user = await authenticatedUser(req);
@@ -123,11 +127,45 @@ module.exports = function createAdminApi({ db, authenticatedUser, ensureProfile,
     return send(res, 405, { error: 'Método não permitido.' });
   }
   async function authorize(req,res,resource,level='view'){return requireAccess(req,res,resource,level);}
-  async function celebrationTemplates(req,res){
+  async function ensureCelebrationImageColumns(){
+    await db().query(`ALTER TABLE public.celebration_email_templates
+      ADD COLUMN IF NOT EXISTS image_base bytea,
+      ADD COLUMN IF NOT EXISTS image_mime text,
+      ADD COLUMN IF NOT EXISTS photo_x_pct numeric NOT NULL DEFAULT 72,
+      ADD COLUMN IF NOT EXISTS photo_y_pct numeric NOT NULL DEFAULT 48,
+      ADD COLUMN IF NOT EXISTS photo_size_pct numeric NOT NULL DEFAULT 24`);
+  }
+  function decodeTemplateImage(value){
+    if(!value)return null;
+    const match=String(value).match(/^data:(image\/(?:jpeg|png));base64,([A-Za-z0-9+/=]+)$/);
+    if(!match)throw new Error('IMAGE_INVALID');
+    const buffer=Buffer.from(match[2],'base64');
+    if(!buffer.length||buffer.length>2500000)throw new Error('IMAGE_INVALID');
+    return {buffer,mime:match[1]};
+  }  async function celebrationTemplates(req,res){
     const ctx=await requireAccess(req,res,'celebration_templates','manage');if(!ctx)return;
+    await ensureCelebrationImageColumns();
     const currentYear=Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',year:'numeric'}).format(new Date()));
-    if(req.method==='GET'){const requested=Number(new URL(req.url,'http://localhost').searchParams.get('year')||currentYear);const rows=await db().query('SELECT event_type,template_year,subject_template,headline,message_html,active,updated_at FROM public.celebration_email_templates WHERE template_year=$1 ORDER BY event_type',[requested]);return send(res,200,{year:requested,templates:rows.rows});}
-    if(req.method==='PUT'){const input=await parseBody(req),eventType=cleanText(input.eventType,24),templateYear=Number(input.templateYear),subject=cleanText(input.subjectTemplate,180),headline=cleanText(input.headline,120),messageHtml=cleanText(input.messageHtml,6000);if(!['birthday','work_anniversary'].includes(eventType)||templateYear<currentYear||templateYear>currentYear+5||!subject||!headline||!messageHtml)return send(res,400,{error:'Confira o ano e os campos do template.'});const result=await db().query(`INSERT INTO public.celebration_email_templates(event_type,template_year,subject_template,headline,message_html,active,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(event_type,template_year) DO UPDATE SET subject_template=EXCLUDED.subject_template,headline=EXCLUDED.headline,message_html=EXCLUDED.message_html,active=EXCLUDED.active,updated_by=EXCLUDED.updated_by,updated_at=now() RETURNING *`,[eventType,templateYear,subject,headline,messageHtml,input.active!==false,ctx.user.id]);return send(res,200,result.rows[0]);}
+    if(req.method==='GET'){
+      const requested=Number(new URL(req.url,'http://localhost').searchParams.get('year')||currentYear);
+      const rows=await db().query(`SELECT event_type,template_year,subject_template,headline,message_html,active,updated_at,image_mime,
+        CASE WHEN image_base IS NULL THEN NULL ELSE encode(image_base,'base64') END image_base64,
+        photo_x_pct::float,photo_y_pct::float,photo_size_pct::float
+        FROM public.celebration_email_templates WHERE template_year=$1 ORDER BY event_type`,[requested]);
+      return send(res,200,{year:requested,templates:rows.rows});
+    }
+    if(req.method==='PUT'){
+      const input=await parseBody(req,3500000),eventType=cleanText(input.eventType,24),templateYear=Number(input.templateYear),subject=cleanText(input.subjectTemplate,180),headline=cleanText(input.headline,120),messageHtml=cleanText(input.messageHtml,6000);
+      const photoX=Number(input.photoXPct??72),photoY=Number(input.photoYPct??48),photoSize=Number(input.photoSizePct??24);
+      let image=null;try{image=decodeTemplateImage(input.imageBase);}catch{return send(res,400,{error:'Envie uma imagem-base JPG ou PNG de até 2,5 MB.'});}
+      if(!['birthday','work_anniversary'].includes(eventType)||templateYear<currentYear||templateYear>currentYear+5||!subject||!headline||!messageHtml||photoX<0||photoX>100||photoY<0||photoY>100||photoSize<10||photoSize>60)return send(res,400,{error:'Confira o ano, os textos e a posição da foto.'});
+      const result=await db().query(`INSERT INTO public.celebration_email_templates(event_type,template_year,subject_template,headline,message_html,active,updated_by,image_base,image_mime,photo_x_pct,photo_y_pct,photo_size_pct)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        ON CONFLICT(event_type,template_year) DO UPDATE SET subject_template=EXCLUDED.subject_template,headline=EXCLUDED.headline,message_html=EXCLUDED.message_html,active=EXCLUDED.active,updated_by=EXCLUDED.updated_by,updated_at=now(),
+        image_base=COALESCE(EXCLUDED.image_base,celebration_email_templates.image_base),image_mime=COALESCE(EXCLUDED.image_mime,celebration_email_templates.image_mime),photo_x_pct=EXCLUDED.photo_x_pct,photo_y_pct=EXCLUDED.photo_y_pct,photo_size_pct=EXCLUDED.photo_size_pct RETURNING event_type,template_year,active,updated_at`,
+        [eventType,templateYear,subject,headline,messageHtml,input.active!==false,ctx.user.id,image?.buffer||null,image?.mime||null,photoX,photoY,photoSize]);
+      return send(res,200,result.rows[0]);
+    }
     return send(res,405,{error:'Método não permitido.'});
   }  return { me, areas, users, moderateFeed, announcements, celebrationTemplates, authorize };
 };

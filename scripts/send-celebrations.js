@@ -42,8 +42,10 @@ async function sendCelebrationTest({recipient,userId,type='birthday'}){
   const template=(await pool.query('SELECT event_type,subject_template,headline,message_html,image_base,image_mime,photo_x_pct,photo_y_pct,photo_size_pct FROM public.celebration_email_templates WHERE event_type=$1 AND template_year=$2 AND active=true',[type,year])).rows[0];
   if(!template?.image_base)throw new Error('Salve uma imagem-base ativa antes do teste.');
   const card=await personalizedCard(template,person,logo);if(!card)throw new Error('Não foi possível gerar o cartão.');
-  const transport=nodemailer.createTransport({service:'gmail',auth:{user,pass}});
+  const transport=nodemailer.createTransport({service:'gmail',auth:{user,pass},connectionTimeout:10000,greetingTimeout:10000,socketTimeout:20000});
+  console.log(JSON.stringify({event:'celebration-test',stage:'smtp',type,recipient}));
   await transport.sendMail({from:`Intranet #ParceirAÇO · Grupo ABR <${user}>`,to:recipient,subject:'[TESTE] '+tokens(template.subject_template,person),html:emailHtml(person,type,template,true),attachments:[{filename:'cartao-personalizado.jpg',content:card,contentType:'image/jpeg',cid:'celebration-card'}]});
+  console.log(JSON.stringify({event:'celebration-test',stage:'sent',type,recipient}));
   return {sent:true,recipient,type};
  }finally{await pool.end();}
 }
@@ -53,7 +55,7 @@ async function sendCelebrations(){
  const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false},max:2});
  try{
   await ensureImageColumns(pool);
-  const year=currentYear(),transport=nodemailer.createTransport({service:'gmail',auth:{user,pass}}),logo=path.join(__dirname,'..','expertaço.png');
+  const year=currentYear(),transport=nodemailer.createTransport({service:'gmail',auth:{user,pass},connectionTimeout:10000,greetingTimeout:10000,socketTimeout:20000}),logo=path.join(__dirname,'..','expertaço.png');
   const people=(await pool.query(`SELECT user_id,email,display_name,photo_data,photo_mime,birth_date,hire_date,(birth_date IS NOT NULL AND to_char(birth_date,'MM-DD')=to_char(now() AT TIME ZONE 'America/Sao_Paulo','MM-DD')) is_birthday,(hire_date IS NOT NULL AND hire_date<(now() AT TIME ZONE 'America/Sao_Paulo')::date AND to_char(hire_date,'MM-DD')=to_char(now() AT TIME ZONE 'America/Sao_Paulo','MM-DD')) is_work_anniversary,CASE WHEN hire_date IS NULL THEN 0 ELSE EXTRACT(YEAR FROM age((now() AT TIME ZONE 'America/Sao_Paulo')::date,hire_date))::int END years FROM public.user_profiles WHERE active=true AND email LIKE '%@grupoabr.com.br' AND ((birth_date IS NOT NULL AND to_char(birth_date,'MM-DD')=to_char(now() AT TIME ZONE 'America/Sao_Paulo','MM-DD')) OR (hire_date IS NOT NULL AND hire_date<(now() AT TIME ZONE 'America/Sao_Paulo')::date AND to_char(hire_date,'MM-DD')=to_char(now() AT TIME ZONE 'America/Sao_Paulo','MM-DD')))`)).rows;
   const templates=(await pool.query('SELECT event_type,subject_template,headline,message_html,image_base,image_mime,photo_x_pct,photo_y_pct,photo_size_pct FROM public.celebration_email_templates WHERE template_year=$1 AND active=true',[year])).rows.reduce((all,item)=>(all[item.event_type]=item,all),{});let sent=0;
   for(const person of people)for(const type of ['birthday','work_anniversary']){
@@ -62,7 +64,8 @@ async function sendCelebrations(){
     const template=templates[type]||defaults[type],card=await personalizedCard(template,person,logo),attachments=[{filename:'expertaco.png',path:logo,cid:'expertaco-logo'}];
     if(card)attachments.push({filename:'cartao-personalizado.jpg',content:card,contentType:'image/jpeg',cid:'celebration-card'});
     else attachments.push(person.photo_data?{filename:'perfil.jpg',content:person.photo_data,contentType:person.photo_mime,cid:'profile-photo'}:{filename:'expertaco-perfil.png',path:logo,cid:'profile-photo'});
-    await transport.sendMail({from:`Intranet #ParceirAÇO · Grupo ABR <${user}>`,to:person.email,cc:process.env.CELEBRATION_EMAIL_CC||undefined,subject:tokens(template.subject_template,person),html:emailHtml(person,type,template,Boolean(card)),attachments});
+    console.log(JSON.stringify({event:'celebration-test',stage:'smtp',type,recipient}));
+  await transport.sendMail({from:`Intranet #ParceirAÇO · Grupo ABR <${user}>`,to:person.email,cc:process.env.CELEBRATION_EMAIL_CC||undefined,subject:tokens(template.subject_template,person),html:emailHtml(person,type,template,Boolean(card)),attachments});
     await pool.query('INSERT INTO public.celebration_email_log(user_id,event_type,celebration_year,recipient_email) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[person.user_id,type,year,person.email]);sent++;
   }
   console.log(JSON.stringify({status:'ok',year,people:people.length,sent}));return{year,people:people.length,sent};

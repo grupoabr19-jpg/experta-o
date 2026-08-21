@@ -149,7 +149,7 @@ module.exports = function createAdminApi({ db, authenticatedUser, ensureProfile,
     if(req.method==='GET'){
       const requested=Number(new URL(req.url,'http://localhost').searchParams.get('year')||currentYear);
       const rows=await db().query(`SELECT event_type,template_year,subject_template,headline,message_html,active,updated_at,image_mime,
-        CASE WHEN image_base IS NULL THEN NULL ELSE encode(image_base,'base64') END image_base64,
+        image_base IS NOT NULL has_image,
         photo_x_pct::float,photo_y_pct::float,photo_size_pct::float
         FROM public.celebration_email_templates WHERE template_year=$1 ORDER BY event_type`,[requested]);
       return send(res,200,{year:requested,templates:rows.rows});
@@ -167,5 +167,15 @@ module.exports = function createAdminApi({ db, authenticatedUser, ensureProfile,
       return send(res,200,result.rows[0]);
     }
     return send(res,405,{error:'Método não permitido.'});
-  }  return { me, areas, users, moderateFeed, announcements, celebrationTemplates, authorize };
+  }
+  async function celebrationTemplateImage(req,res){
+    const ctx=await requireAccess(req,res,'celebration_templates','manage');if(!ctx)return;
+    const url=new URL(req.url,'http://localhost'),eventType=cleanText(url.searchParams.get('type'),24),templateYear=Number(url.searchParams.get('year'));
+    if(!['birthday','work_anniversary'].includes(eventType)||!Number.isInteger(templateYear))return send(res,400,{error:'Imagem de modelo inválida.'});
+    const row=(await db().query('SELECT image_base,image_mime,updated_at FROM public.celebration_email_templates WHERE event_type=$1 AND template_year=$2',[eventType,templateYear])).rows[0];
+    if(!row?.image_base)return send(res,404,{error:'Imagem-base não encontrada.'});
+    res.writeHead(200,{'Content-Type':row.image_mime||'image/png','Content-Length':row.image_base.length,'Cache-Control':'private, no-cache','Last-Modified':new Date(row.updated_at).toUTCString()});
+    res.end(row.image_base);
+  }
+  return { me, areas, users, moderateFeed, announcements, celebrationTemplates, celebrationTemplateImage, authorize };
 };

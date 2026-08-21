@@ -210,7 +210,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 502, { error:'Não foi possível enviar agora. Tente novamente em instantes.' });
     }
   }  if (url.pathname === '/api/ranking' && req.method === 'GET') {
-    try { const resource=url.searchParams.get('channel')==='ticker'?'ranking_ticker':'ranking';if(!await adminApi.authorize(req,res,resource,'view'))return;return send(res, 200, await getRanking()); }
+    try { if(!await adminApi.authorize(req,res,'ranking','view'))return;return send(res, 200, await getRanking()); }
     catch (error) { return send(res, 502, { error: 'Não foi possível atualizar o ranking.', fallbackAvailable: true }); }
   }
   if (url.pathname === '/api/ranking/manual' && req.method === 'POST') {

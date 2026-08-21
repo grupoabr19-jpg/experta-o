@@ -6,16 +6,36 @@
 
   renderNav=function(){
     const current=clean(route());
-    document.querySelector('#sideNav').innerHTML=sections.map(s=>
-      '<a href="'+pathFor(s.id)+'" data-route="'+s.id+'" class="'+(current===s.id?'active':'')+'"><span class="nav-label">'+s.label+'</span></a>'
-    ).join('');
+    const link=(id,label,extra='')=>'<a href="'+pathFor(id)+'" data-route="'+id+'" class="'+(current===id?'active ':'')+extra+'"><span class="nav-label">'+label+'</span></a>';
+    const scriptsActive=['prospeccao','objecoes','posvenda','crise'].includes(current);
+    document.querySelector('#sideNav').innerHTML=
+      link('ranking','Ranking','nav-ranking')+
+      link('visao','Visão geral')+
+      link('regras','Regras de ouro')+
+      link('portfolio','Portfólio')+
+      '<details class="nav-group" '+(scriptsActive?'open':'')+'><summary class="'+(scriptsActive?'active':'')+'"><span>Scripts</span><span class="nav-chevron">⌄</span></summary><div class="nav-submenu">'+
+        '<a href="/prospeccao#script-operacional">Roteiro completo</a>'+
+        '<a href="/prospeccao#abertura">Abertura da conversa</a>'+
+        '<a href="/prospeccao#spin">Diagnóstico SPIN</a>'+
+        '<a href="/prospeccao#ponte">Ponte para valor</a>'+
+        '<a href="/prospeccao#fechamento">Próximo passo</a>'+
+        '<a href="/objecoes">Quebra de objeções</a>'+
+        '<a href="/posvenda">Pós-venda</a>'+
+        '<a href="/crise">Gestão de crise</a>'+
+      '</div></details>'+
+      link('ideaaco','#IdeAÇO')+
+      link('reativacao','Projeto Guerra')+
+      '<a href="https://drive.google.com/drive/folders/1h-d8hoZII-m0oRe8xv5A6nP0EycLcXm3?usp=sharing" target="_blank" rel="noopener" class="nav-external"><span class="nav-label">Materiais de marketing</span><span aria-hidden="true">↗</span></a>'+
+      '<span class="nav-divider">Mais recursos</span>'+
+      link('kommo','Qualificação Kommo')+
+      link('blog','Blog e notícias');
   };
 
   renderContent=function(){
     const current=clean(route()),section=sections.find(s=>s.id===current),m=meta[current]||['',section.label,''];
     const sectionCards=cards.filter(c=>c.section===current&&visible(c));
     const host=document.querySelector('#playbookContent');
-    host.innerHTML='<section id="'+current+'" class="playbook-section content-section route-page"><header class="section-heading"><div><span class="section-kicker">PLAYBOOK EXPERTAÇO</span><h1>'+m[1]+'</h1></div><p>'+m[2]+'</p></header><div class="grid">'+sectionCards.map(card=>'<article class="card '+(card.script?'highlight':'')+'" data-id="'+card.id+'"><div class="card-tools"><button class="favorite-button '+(state.favorites.has(card.id)?'active':'')+'" aria-label="Favoritar '+card.title+'" title="Favoritar">★</button>'+(card.script?'<button class="copy-button" aria-label="Copiar '+card.title+'" title="Copiar script">Copiar</button>':'')+'</div><h2>'+card.title+'</h2><div class="card-body">'+card.html+'</div><footer>'+card.tags.map(t=>'<span class="tag">'+t+'</span>').join('')+'</footer></article>').join('')+'</div></section>';
+    host.innerHTML='<section id="'+current+'" class="playbook-section content-section route-page"><header class="section-heading"><div><span class="section-kicker">PLAYBOOK EXPERTAÇO</span><h1>'+m[1]+'</h1></div><p>'+m[2]+'</p></header><div class="grid">'+sectionCards.map(card=>'<article class="card '+(card.script?'highlight':'')+'" id="'+card.id+'" data-id="'+card.id+'"><div class="card-tools"><button class="favorite-button '+(state.favorites.has(card.id)?'active':'')+'" aria-label="Favoritar '+card.title+'" title="Favoritar">★</button>'+(card.script?'<button class="copy-button" aria-label="Copiar '+card.title+'" title="Copiar script">Copiar</button>':'')+'</div><h2>'+card.title+'</h2><div class="card-body">'+card.html+'</div><footer>'+card.tags.map(t=>'<span class="tag">'+t+'</span>').join('')+'</footer></article>').join('')+'</div></section>';
     const summary=document.querySelector('#searchSummary');
     summary.hidden=!state.query&&state.filter==='todos';
     summary.textContent=sectionCards.length+' conteúdo'+(sectionCards.length===1?'':'s')+' encontrado'+(sectionCards.length===1?'':'s')+'.';
@@ -32,7 +52,8 @@
     document.querySelector('#sidebar').classList.remove('open');
     document.querySelector('#backdrop').classList.remove('show');
     document.querySelector('#menuButton').setAttribute('aria-expanded','false');
-    scrollTo({top:0,behavior:'instant'});
+    const target=location.hash&&document.querySelector(location.hash);
+    if(target)requestAnimationFrame(()=>target.scrollIntoView({block:'start'}));else scrollTo({top:0,behavior:'instant'});
   }
 
   document.addEventListener('click',e=>{
@@ -41,8 +62,9 @@
     const url=new URL(a.href,location.href);
     if(url.origin!==location.origin||a.target==='_blank'||url.pathname.endsWith('.pdf'))return;
     const hashRoute=url.hash&&url.hash.length>1?url.hash.slice(1):null;
-    const next=hashRoute&&valid(hashRoute)?pathFor(hashRoute):url.pathname;
-    if(!valid(next.replace(/^\//,'')||'visao'))return;
+    const routeId=url.pathname.replace(/^\//,'')||'visao';
+    const next=hashRoute&&valid(hashRoute)?pathFor(hashRoute):url.pathname+url.hash;
+    if(!valid(routeId))return;
     e.preventDefault();history.pushState({},'',next);applyRoute();
   });
   addEventListener('popstate',applyRoute);

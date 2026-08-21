@@ -10,11 +10,11 @@ services:
       - key: NODE_VERSION
         value: 22
       - key: SALES_DATA_MODE
-        value: mock
+        value: api
       - key: ADMIN_TOKEN
         sync: false
       - key: SALES_DATA_URL
-        sync: false
+        value: https://docs.google.com/spreadsheets/d/1JIh_mw9_VH_EbRLjbZ996N5w4-BOhDHAquRdwvgqtxc/gviz/tq?tqx=out:csv&sheet=Ranking_Saida
       - key: ASTER_API_URL
         sync: false
       - key: ASTER_AUTH_TOKEN

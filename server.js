@@ -2,14 +2,14 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { rankingFromCsv } = require('./csv-ranking');
+const { rankingFromCsv } = require('./csv-ranking-sheets');
 
 const root = __dirname;
 const publicDir = fs.existsSync(path.join(root, 'dist')) ? path.join(root, 'dist') : path.join(root, 'public');
 const rankingFile = path.join(root, 'data', 'ranking.json');
 const port = Number(process.env.PORT || 3000);
 const mode = ['mock', 'manual', 'api'].includes(process.env.SALES_DATA_MODE) ? process.env.SALES_DATA_MODE : 'mock';
-const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' };
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.gif': 'image/gif' };
 
 function send(res, status, payload, headers = {}) {
   const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
@@ -22,7 +22,8 @@ function readRanking() {
 }
 
 function validRanking(input) {
-  return input && typeof input.period === 'string' && Array.isArray(input.regions) && Array.isArray(input.sellers) && [...input.regions, ...input.sellers].every(item => item && typeof item.name === 'string' && Number.isFinite(Number(item.salesAmount)));
+  const teams = input?.teams || input?.regions;
+  return input && typeof input.period === 'string' && Array.isArray(teams) && Array.isArray(input.sellers) && [...teams, ...input.sellers].every(item => item && typeof item.name === 'string');
 }
 
 async function getRanking() {

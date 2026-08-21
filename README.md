@@ -30,6 +30,8 @@ Defina `SALES_DATA_MODE`:
 - `manual`: permite gravar um payload completo por `POST /api/ranking/manual`, usando `Authorization: Bearer <ADMIN_TOKEN>`.
 - `api`: consulta `SALES_DATA_URL` no servidor. Se necessário, envia `ASTER_AUTH_TOKEN` como Bearer.
 
+No Render, o ranking usa diretamente a aba `Ranking_Saida` do Google Sheets. Alterações na planilha aparecem na próxima consulta do site, sem novo deploy.
+
 Contrato esperado:
 
 ```json

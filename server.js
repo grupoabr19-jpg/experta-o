@@ -192,8 +192,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/celebration-test' && req.method === 'POST') {
     try {
       const ctx=await adminApi.authorize(req,res,'celebration_templates','manage');if(!ctx)return;
-      const input=await parseBody(req),recipient='grupoabr19@gmail.com',type=cleanText(input.type,24);
+      const input=await parseBody(req),recipient=cleanText(input.recipient,180).toLowerCase(),type=cleanText(input.type,24);
       if(!['birthday','work_anniversary'].includes(type))return send(res,400,{error:'Modelo de teste inválido.'});
+      if(!(recipient.endsWith('@grupoabr.com.br')||recipient==='grupoabr19@gmail.com'))return send(res,400,{error:'Use um e-mail @grupoabr.com.br ou o endereço de teste autorizado.'});
       return send(res,200,await sendCelebrationTest({recipient,userId:ctx.user.id,type}));
     } catch(error){console.error('Falha no teste comemorativo:',error.message);return send(res,502,{error:error.message||'Não foi possível enviar o teste.'});}
   }  if (url.pathname === '/api/celebration-template-image' && req.method === 'GET') { try{return await adminApi.celebrationTemplateImage(req,res);}catch(error){console.error('Falha na imagem do template:',error.message);return send(res,502,{error:'Não foi possível carregar a imagem do template.'});} }

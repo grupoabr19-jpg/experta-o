@@ -9,7 +9,7 @@
                     "test":  "node --test",
                     "typecheck":  "node --check server.js \u0026\u0026 node --check public/app.js",
                     "lint":  "node --check server.js \u0026\u0026 node --check public/app.js",
-                    "build":  "node scripts/build.js"
+                    "build":  "npm install --omit=dev --ignore-scripts --no-audit --no-fund \u0026\u0026 node scripts/build.js"
                 },
     "engines":  {
                     "node":  "\u003e=20"

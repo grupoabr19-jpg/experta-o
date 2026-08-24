@@ -32,13 +32,19 @@ function emailHtml(person,type,template,hasCard){const visual=hasCard?'<img src=
 
 function smtpOptions(){
   const host=process.env.IDEAACO_SMTP_HOST||'smtp.gmail.com';
-  const port=Number(process.env.IDEAACO_SMTP_PORT||465);
+  const port=Number(process.env.IDEAACO_SMTP_PORT||587);
   const secure=process.env.IDEAACO_SMTP_SECURE ? process.env.IDEAACO_SMTP_SECURE !== 'false' : port===465;
-  return [
-    {host,port,secure,family:4},
-    {host:'smtp.gmail.com',port:465,secure:true,family:4},
-    {host:'smtp.gmail.com',port:587,secure:false,requireTLS:true,family:4}
+  const options=[
+    {host:'smtp.gmail.com',port:587,secure:false,requireTLS:true,family:4},
+    {host,port,secure,requireTLS:!secure&&port===587,family:4},
+    {host:'smtp.gmail.com',port:465,secure:true,family:4}
   ];
+  return options.filter((item,index,self)=>index===self.findIndex(other=>other.host===item.host&&other.port===item.port&&other.secure===item.secure));
+}
+function shouldRetrySmtp(error){
+  const code=String(error.code||'');
+  const message=String(error.message||'').toLowerCase();
+  return ['ETIMEDOUT','ESOCKET','ECONNECTION','ECONNRESET','EHOSTUNREACH','ENETUNREACH'].includes(code)||message.includes('timeout')||message.includes('timed out');
 }
 async function sendGmail(nodemailer,auth,message,context={}){
   const options=smtpOptions();
@@ -53,14 +59,14 @@ async function sendGmail(nodemailer,auth,message,context={}){
       tls:{servername:options[attempt].host}
     });
     try{
-      console.log(JSON.stringify({event:'gmail-send',stage:'connecting',attempt:attempt+1,port:options[attempt].port,...context}));
+      console.log(JSON.stringify({event:'gmail-send',stage:'connecting',attempt:attempt+1,host:options[attempt].host,port:options[attempt].port,secure:options[attempt].secure,requireTLS:Boolean(options[attempt].requireTLS),...context}));
       const result=await transport.sendMail(message);
-      console.log(JSON.stringify({event:'gmail-send',stage:'sent',attempt:attempt+1,port:options[attempt].port,...context}));
+      console.log(JSON.stringify({event:'gmail-send',stage:'sent',attempt:attempt+1,host:options[attempt].host,port:options[attempt].port,secure:options[attempt].secure,requireTLS:Boolean(options[attempt].requireTLS),...context}));
       return result;
     }catch(error){
       lastError=error;
-      console.error(JSON.stringify({event:'gmail-send',stage:'failed',attempt:attempt+1,port:options[attempt].port,code:error.code||'',message:error.message,...context}));
-      if(error.code!=='ETIMEDOUT'||attempt===options.length-1)throw error;
+      console.error(JSON.stringify({event:'gmail-send',stage:'failed',attempt:attempt+1,host:options[attempt].host,port:options[attempt].port,secure:options[attempt].secure,requireTLS:Boolean(options[attempt].requireTLS),code:error.code||'',message:error.message,...context}));
+      if(!shouldRetrySmtp(error)||attempt===options.length-1)throw error;
     }finally{
       transport.close();
     }
@@ -69,7 +75,7 @@ async function sendGmail(nodemailer,auth,message,context={}){
 }
 async function sendCelebrationTest({recipient,userId,type='birthday'}){
  const {Pool}=require('pg'),nodemailer=require('nodemailer');
- const user=process.env.IDEAACO_EMAIL_USER,pass=process.env.IDEAACO_EMAIL_APP_PASSWORD;if(!process.env.DATABASE_URL||!user||!pass)throw new Error('Configuração de e-mail indisponível.');
+ const user=process.env.IDEAACO_EMAIL_USER,pass=String(process.env.IDEAACO_EMAIL_APP_PASSWORD||'').replace(/\s+/g,'');if(!process.env.DATABASE_URL||!user||!pass)throw new Error('Configuração de e-mail indisponível.');
  const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false},max:2});
  try{
   await ensureImageColumns(pool);const year=currentYear(),logo=path.join(__dirname,'..','expertaço.png');
@@ -84,7 +90,7 @@ async function sendCelebrationTest({recipient,userId,type='birthday'}){
 }
 async function sendCelebrations(){
  const {Pool}=require('pg'),nodemailer=require('nodemailer');
- const user=process.env.IDEAACO_EMAIL_USER,pass=process.env.IDEAACO_EMAIL_APP_PASSWORD;if(!process.env.DATABASE_URL||!user||!pass)throw new Error('DATABASE_URL e credenciais de e-mail são obrigatórias.');
+ const user=process.env.IDEAACO_EMAIL_USER,pass=String(process.env.IDEAACO_EMAIL_APP_PASSWORD||'').replace(/\s+/g,'');if(!process.env.DATABASE_URL||!user||!pass)throw new Error('DATABASE_URL e credenciais de e-mail são obrigatórias.');
  const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false},max:2});
  try{
   await ensureImageColumns(pool);
@@ -105,3 +111,4 @@ async function sendCelebrations(){
 }
 if(require.main===module)sendCelebrations().catch(error=>{console.error(error.message);process.exitCode=1;});
 module.exports={sendCelebrations,sendCelebrationTest,personalizedCard};
+

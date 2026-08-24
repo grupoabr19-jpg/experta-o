@@ -140,7 +140,11 @@ async function authenticatedUser(req) {
   return user&&corporateEmail(user.email)?{id:String(user.id),email:String(user.email).toLowerCase(),name:cleanText(user.name||user.email.split('@')[0],120)}:null;
 }
 const safeUrl=value=>{const url=cleanText(value,500);if(!url)return'';try{const parsed=new URL(url);return ['http:','https:'].includes(parsed.protocol)?parsed.toString():'';}catch{return'';}};
+const safeImageUrl=value=>{const url=safeUrl(value);if(!url)return'';try{return /\.(?:png|jpe?g|gif|webp)$/i.test(new URL(url).pathname)?url:'';}catch{return'';}};
+let profileColumnsReady=false;
+async function ensureProfileColumns(){if(profileColumnsReady)return;await db().query(`ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS signature_url text NOT NULL DEFAULT ''`);profileColumnsReady=true;}
 async function ensureProfile(user){
+  await ensureProfileColumns();
   const existingByUserId = await db().query('SELECT * FROM public.user_profiles WHERE user_id=$1', [user.id]);
   if (existingByUserId.rowCount) {
     const result = await db().query('UPDATE public.user_profiles SET email=$2,updated_at=now() WHERE user_id=$1 RETURNING *', [user.id, user.email]);
@@ -158,6 +162,7 @@ function jpegDimensions(buffer){let offset=2;while(offset<buffer.length){if(buff
 function decodeProfilePhoto(value){if(!value)return null;const match=String(value).match(/^data:(image\/jpeg);base64,([A-Za-z0-9+/=]+)$/);if(!match)throw new Error('PHOTO_INVALID');const buffer=Buffer.from(match[2],'base64');if(!buffer.length||buffer.length>650000)throw new Error('PHOTO_INVALID');const size=jpegDimensions(buffer);if(!size||size.width!==400||size.height!==400)throw new Error('PHOTO_DIMENSIONS');return{buffer,mime:match[1]};}
 async function handleProfile(req,res){
   const user=await authenticatedUser(req);if(!user)return send(res,401,{error:'Faça login para acessar seu perfil.'});
+  await ensureProfileColumns();
   if(req.method==='GET')return send(res,200,publicProfile(await ensureProfile(user)));
   if(req.method==='PUT'){
     const input=await parseBody(req,1200000),name=cleanText(input.displayName,120),bio=cleanText(input.bio,301),mood=cleanText(input.mood,81),birthDate=cleanText(input.birthDate,10),hireDate=cleanText(input.hireDate,10);
@@ -165,9 +170,9 @@ async function handleProfile(req,res){
     if(new Date(birthDate+'T12:00:00Z')>new Date()||new Date(hireDate+'T12:00:00Z')>new Date())return send(res,400,{error:'As datas do perfil não podem estar no futuro.'});
     let photo=null;try{photo=decodeProfilePhoto(input.photoData);}catch(error){return send(res,400,{error:error.message==='PHOTO_DIMENSIONS'?'A foto precisa ter exatamente 400 × 400 pixels.':'Envie uma foto JPG válida de até 650 KB.'});}
     await ensureProfile(user);
-    const values=[user.id,name,bio,safeUrl(input.linkedinUrl),safeUrl(input.instagramUrl),safeUrl(input.facebookUrl),mood,birthDate,hireDate];
-    let query=`UPDATE public.user_profiles SET display_name=$2,bio=$3,linkedin_url=$4,instagram_url=$5,facebook_url=$6,mood=$7,birth_date=$8,hire_date=$9,updated_at=now()`;
-    if(photo){values.push(photo.buffer,photo.mime);query+=`,photo_data=$10,photo_mime=$11`;}
+    const values=[user.id,name,bio,safeUrl(input.linkedinUrl),safeUrl(input.instagramUrl),safeUrl(input.facebookUrl),mood,birthDate,hireDate,safeImageUrl(input.signatureUrl)];
+    let query=`UPDATE public.user_profiles SET display_name=$2,bio=$3,linkedin_url=$4,instagram_url=$5,facebook_url=$6,mood=$7,birth_date=$8,hire_date=$9,signature_url=$10,updated_at=now()`;
+    if(photo){values.push(photo.buffer,photo.mime);query+=`,photo_data=$11,photo_mime=$12`;}
     query+=` WHERE user_id=$1 RETURNING *`;const result=await db().query(query,values);return send(res,200,publicProfile(result.rows[0]));
   }
   return send(res,405,{error:'Método não permitido.'});
@@ -175,7 +180,8 @@ async function handleProfile(req,res){
 async function handleProfilePhoto(req,res,url){const viewer=await authenticatedUser(req);if(!viewer)return send(res,401,{error:'Faça login.'});const userId=cleanText(url.searchParams.get('id'),180);const result=await db().query('SELECT photo_data,photo_mime FROM public.user_profiles WHERE user_id=$1 AND active=true',[userId]);const photo=result.rows[0];if(!photo?.photo_data)return send(res,404,{error:'Foto não encontrada.'});res.writeHead(200,{'Content-Type':photo.photo_mime,'Cache-Control':'private, max-age=3600','Content-Length':photo.photo_data.length});res.end(photo.photo_data);}
 let feedColumnsReady=false;
 async function ensureFeedColumns(){if(feedColumnsReady)return;await db().query(`ALTER TABLE public.feed_posts ADD COLUMN IF NOT EXISTS visibility text NOT NULL DEFAULT 'general', ADD COLUMN IF NOT EXISTS area_id uuid`);feedColumnsReady=true;}
-async function handleFeed(req,res,url){const user=await authenticatedUser(req);if(!user)return send(res,401,{error:'Faça login para acessar o feed.'});const profile=await ensureProfile(user);await ensureFeedColumns();if(req.method==='GET'){const scope=cleanText(url.searchParams.get('scope'),20)==='team'?'team':'general';const params=[];let where="p.hidden_at IS NULL AND COALESCE(p.visibility,'general')='general'";if(scope==='team'){where="p.hidden_at IS NULL AND p.visibility='team' AND p.area_id=$1";params.push(profile.area_id||null);}const result=await db().query(`SELECT p.id,p.content,p.created_at,p.user_id,p.visibility,a.name area_name,u.display_name,u.bio,u.linkedin_url,u.instagram_url,u.facebook_url,u.photo_data IS NOT NULL AS has_photo FROM public.feed_posts p JOIN public.user_profiles u ON u.user_id=p.user_id LEFT JOIN public.portal_areas a ON a.id=p.area_id WHERE ${where} ORDER BY p.created_at DESC LIMIT 80`,params);return send(res,200,{scope,areaId:profile.area_id||null,posts:result.rows});}if(req.method==='POST'){const input=await parseBody(req),content=cleanText(input.content,501),visibility=cleanText(input.visibility,20)==='team'?'team':'general';if(!content||content.length>500)return send(res,400,{error:'A publicação deve ter entre 1 e 500 caracteres.'});if(visibility==='team'&&!profile.area_id)return send(res,400,{error:'Defina uma área para seu perfil antes de publicar para a equipe.'});const result=await db().query(`INSERT INTO public.feed_posts(user_id,content,visibility,area_id) VALUES($1,$2,$3,$4) RETURNING id,content,created_at,user_id,visibility,area_id`,[user.id,content,visibility,visibility==='team'?profile.area_id:null]);return send(res,201,result.rows[0]);}return send(res,405,{error:'Método não permitido.'});}
+const feedProfileSelect='u.display_name,u.bio,u.linkedin_url,u.instagram_url,u.facebook_url,u.signature_url,u.photo_data IS NOT NULL AS has_photo';
+async function handleFeed(req,res,url){const user=await authenticatedUser(req);if(!user)return send(res,401,{error:'Faça login para acessar o feed.'});const profile=await ensureProfile(user);await ensureFeedColumns();if(req.method==='GET'){const scope=cleanText(url.searchParams.get('scope'),20)==='team'?'team':'general';const params=[];let where="p.hidden_at IS NULL AND COALESCE(p.visibility,'general')='general'";if(scope==='team'){where="p.hidden_at IS NULL AND p.visibility='team' AND p.area_id=$1";params.push(profile.area_id||null);}const result=await db().query(`SELECT p.id,p.content,p.created_at,p.user_id,p.visibility,a.name area_name,${feedProfileSelect} FROM public.feed_posts p JOIN public.user_profiles u ON u.user_id=p.user_id LEFT JOIN public.portal_areas a ON a.id=p.area_id WHERE ${where} ORDER BY p.created_at DESC LIMIT 80`,params);return send(res,200,{scope,areaId:profile.area_id||null,posts:result.rows});}if(req.method==='POST'){const input=await parseBody(req),content=cleanText(input.content,501),visibility=cleanText(input.visibility,20)==='team'?'team':'general';if(!content||content.length>500)return send(res,400,{error:'A publicação deve ter entre 1 e 500 caracteres.'});if(visibility==='team'&&!profile.area_id)return send(res,400,{error:'Defina uma área para seu perfil antes de publicar para a equipe.'});const result=await db().query(`INSERT INTO public.feed_posts(user_id,content,visibility,area_id) VALUES($1,$2,$3,$4) RETURNING id,content,created_at,user_id,visibility,area_id`,[user.id,content,visibility,visibility==='team'?profile.area_id:null]);return send(res,201,result.rows[0]);}return send(res,405,{error:'Método não permitido.'});}
 const adminApi = createAdminApi({ db, authenticatedUser, ensureProfile, send, parseBody, cleanText, safeUrl });
 
 function serveFile(req, res) {
@@ -252,3 +258,4 @@ const server = http.createServer(async (req, res) => {
 });
 
 if (require.main === module) server.listen(port, '0.0.0.0', () => { console.log(`Intranet #ParceirAÇO disponível na porta ${port}`); setTimeout(maybeSendCelebrations,15000); setInterval(maybeSendCelebrations,6*60*60*1000).unref(); });module.exports = { server, validRanking };
+

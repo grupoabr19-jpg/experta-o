@@ -11,6 +11,7 @@
     document.querySelector('#sideNav').innerHTML=
       link('ranking','Ranking','nav-ranking')+
       link('conta','Minha área','nav-account')+
+      link('feed','Feed')+
       link('visao','Visão geral')+
       link('regras','Regras de ouro')+
       link('portfolio','Portfólio')+
@@ -73,6 +74,6 @@
   const heroObserver=new MutationObserver(()=>document.querySelectorAll('#inicio a[href^="#"]').forEach(a=>a.href='/'+a.getAttribute('href').slice(1)));
   heroObserver.observe(document.querySelector('#inicio'),{childList:true,subtree:true});
   document.querySelector('.brand').href='/';
-  document.querySelector('.topnav').innerHTML='<a href="/">Início</a><a href="/prospeccao">Playbook de Vendas</a><a href="/portfolio">Portfólio</a><a href="/ranking">Ranking</a><a href="/kommo">Kommo</a>';
+  document.querySelector('.topnav').innerHTML='<a href="/">Início</a><a href="/feed">Feed</a><a href="/prospeccao">Playbook de Vendas</a><a href="/portfolio">Portfólio</a><a href="/ranking">Ranking</a><a href="/kommo">Kommo</a>';
   applyRoute();
 })();

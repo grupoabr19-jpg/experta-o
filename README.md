@@ -1,76 +1,97 @@
-# Playbook de Vendas â€” Grupo ABR
+# Intranet #ParceirAÇO | Grupo ABR
 
-AplicaÃ§Ã£o web de consulta rÃ¡pida para a equipe comercial do Grupo ABR. ReÃºne scripts de prospecÃ§Ã£o, objeÃ§Ãµes por perfil, reativaÃ§Ã£o, pÃ³s-venda, gestÃ£o de crise, qualificaÃ§Ã£o no Kommo e ranking de vendas.
+Aplicação web interna do Grupo ABR para apoio comercial, comunicação interna e automação operacional.
 
-## Executar localmente
+## O que o sistema faz
 
-Requer Node.js 20 ou superior. NÃ£o hÃ¡ dependÃªncias externas.
+- Exibe um playbook de vendas com scripts, objeções, reativação, pós-venda, crise, Kommo e regras de ouro.
+- Mostra um ranking comercial com base em fonte externa, JSON local ou gravação manual.
+- Oferece uma área autenticada do colaborador com perfil, foto e feed interno.
+- Permite administração de áreas, perfis, comunicados e templates de celebração.
+- Envia e-mails automáticos de aniversário e aniversário de empresa.
+- Publica conteúdos estáticos e assets de apoio como catálogo e marca.
+
+## Arquitetura
+
+- `server.js` centraliza o servidor HTTP, a API e o roteamento da SPA.
+- `admin-server.js` concentra permissões e endpoints administrativos.
+- `public/` contém a SPA e as extensões de interface.
+- `scripts/` contém build e automações de e-mail.
+- `data/ranking.json` serve como fallback local do ranking.
+- `dist/` é a saída do build para deploy.
+
+## Como executar
+
+Requer Node.js 20+.
 
 ```bash
-npm run dev
+node server.js
 ```
 
-Acesse `http://localhost:3000`.
-
-ValidaÃ§Ãµes:
+Se preferir desenvolvimento com watch:
 
 ```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
-npm start
+node --watch server.js
+```
+
+A aplicação sobe em `http://localhost:3000` por padrão.
+
+## Validação
+
+```bash
+node --test
+node --check server.js
+node --check public/app.js
+node --check public/auth-extension.js
+node --check public/admin-extension.js
+node --check scripts/send-celebrations.js
 ```
 
 ## Ranking
 
-Defina `SALES_DATA_MODE`:
+O comportamento do ranking é controlado por `SALES_DATA_MODE`:
 
-- `mock`: usa `data/ranking.json` e funciona imediatamente.
-- `manual`: permite gravar um payload completo por `POST /api/ranking/manual`, usando `Authorization: Bearer <ADMIN_TOKEN>`.
-- `api`: consulta `SALES_DATA_URL` no servidor. Se necessÃ¡rio, envia `ASTER_AUTH_TOKEN` como Bearer.
+- `mock`: lê `data/ranking.json`.
+- `manual`: aceita `POST /api/ranking/manual` com `Authorization: Bearer <ADMIN_TOKEN>`.
+- `api`: consulta `SALES_DATA_URL` e converte CSV ou JSON em contrato interno.
 
-No Render, o ranking usa diretamente a aba `Ranking_Saida` do Google Sheets. AlteraÃ§Ãµes na planilha aparecem na prÃ³xima consulta do site, sem novo deploy.
+O contrato esperado inclui:
 
-Contrato esperado:
+- `period`
+- `updatedAt`
+- `teams` ou `regions`
+- `sellers`
 
-```json
-{
-  "updatedAt": "2026-08-20T15:00:00.000Z",
-  "period": "Agosto/2026",
-  "regions": [{ "id": "sul", "name": "Sul", "position": 1, "salesAmount": 100000, "orders": 20, "trend": 5 }],
-  "sellers": [{ "id": "v1", "name": "Consultor", "region": "Sul", "position": 1, "salesAmount": 50000, "orders": 10, "trend": 3 }]
-}
-```
+## Autenticação e perfil
 
-O modo manual grava no sistema de arquivos. No Render, esse armazenamento Ã© efÃªmero; para produÃ§Ã£o, use Postgres, Key Value ou uma fonte externa persistente.
+- A autenticação é proxied para Neon Auth via `/api/auth/*`.
+- Apenas e-mails `@grupoabr.com.br` são aceitos no fluxo corporativo.
+- O perfil autenticado usa PostgreSQL em `public.user_profiles`.
+- O feed interno usa `public.feed_posts`.
 
-## IntegraÃ§Ãµes
+## Celebrações por e-mail
 
-Copie `.env.example` para `.env` apenas no ambiente local e configure as variÃ¡veis. O projeto nÃ£o carrega `.env` automaticamente porque nÃ£o possui dependÃªncias; forneÃ§a-as pelo terminal ou pela plataforma. No Render, cadastre os segredos em **Environment**.
-
-Tokens do Aster e Kommo permanecem exclusivamente no servidor. A integraÃ§Ã£o do Kommo estÃ¡ preparada por configuraÃ§Ã£o, mas propositalmente nÃ£o executa escritas atÃ© que o contrato real seja definido.
+- O envio usa Gmail SMTP com `IDEAACO_EMAIL_USER` e `IDEAACO_EMAIL_APP_PASSWORD`.
+- Os templates ficam em `public.celebration_email_templates`.
+- As imagens-base e a composição do cartão comemorativo são persistidas no banco.
+- O envio automático grava um log em `public.celebration_email_log`.
 
 ## Deploy no Render
 
-1. Envie o projeto para um repositÃ³rio Git.
-2. No Render, crie um Blueprint usando `render.yaml`.
-3. Preencha as variÃ¡veis marcadas como `sync: false`.
-4. Inicie em `SALES_DATA_MODE=mock`.
-5. Confirme `/api/health` e depois conecte a fonte real do ranking.
+- O build copia os arquivos públicos para `dist/`.
+- O servidor responde na porta `PORT`.
+- O healthcheck é `/api/health`.
+- As variáveis sensíveis são configuradas no Render como secrets.
 
-O build copia o frontend e o logotipo `expertaÃ§o.png` para `dist/`. O servidor escuta a porta definida por `PORT` e hospeda o SPA e a API no mesmo serviÃ§o.
+## Limpeza e manutenção
 
-## Atualizar conteÃºdo
+- O modo manual do ranking grava em arquivo e não deve ser tratado como persistência definitiva em produção.
+- O projeto depende de PostgreSQL para perfil, feed, áreas e templates.
+- Os documentos de marca e vendas originais serviram de base para o conteúdo da intranet.
 
-Os cards ficam no array `cards` de `public/app.js`. Cada item possui identificador, seÃ§Ã£o, pÃºblico, tÃ­tulo, tags e HTML. O conteÃºdo atual foi derivado do documento `Playbook_Vendas_GrupoABR.docx`; as cores e diretrizes seguem `Manual_Identidade_Visual_Grupo_ABR.pptx`.
+## Próximos cuidados
 
-## Checklist de produÃ§Ã£o
-
-- Revisar textos, produtos ativos e condiÃ§Ãµes com a lideranÃ§a comercial.
-- Confirmar links oficiais de redes sociais.
-- Definir a origem real do ranking e validar seu JSON.
-- Definir autenticaÃ§Ã£o corporativa antes de habilitar administraÃ§Ã£o.
-- Adicionar persistÃªncia permanente se o modo manual for necessÃ¡rio.
-- Configurar tokens somente como segredos do Render.
-- Validar as regras e campos reais do pipeline do Kommo.
+- Confirmar com a liderança comercial qualquer atualização de produto ou discurso.
+- Validar o contrato real da planilha de ranking.
+- Revisar o comportamento de autenticação antes de expandir permissões.
+- Monitorar o envio SMTP em produção após a correção de timeout.

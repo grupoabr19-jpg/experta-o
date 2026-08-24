@@ -1,6 +1,5 @@
 const fs=require('node:fs');
 const path=require('node:path');
-const sharp=require('sharp');
 const currentYear=()=>Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',year:'numeric'}).format(new Date()));
 const clean=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tokens=(value,person)=>String(value).replace(/{{\s*name\s*}}/gi,person.display_name).replace(/{{\s*years\s*}}/gi,String(person.years||'')).replace(/{{\s*company\s*}}/gi,'Grupo ABR');
@@ -15,7 +14,7 @@ async function ensureImageColumns(pool){
     ADD COLUMN IF NOT EXISTS photo_size_pct numeric NOT NULL DEFAULT 24`);
 }
 async function personalizedCard(template,person,fallbackPath){
-  if(!template.image_base)return null;
+  const sharp = require('sharp');
   const source=sharp(template.image_base).rotate();
   const meta=await source.metadata();if(!meta.width||!meta.height)return null;
   const scale=Math.min(1,1200/meta.width),width=Math.max(1,Math.round(meta.width*scale)),height=Math.max(1,Math.round(meta.height*scale));
@@ -31,14 +30,28 @@ async function personalizedCard(template,person,fallbackPath){
 }
 function emailHtml(person,type,template,hasCard){const visual=hasCard?'<img src="cid:celebration-card" width="600" alt="Cartão comemorativo de '+clean(person.display_name)+'" style="display:block;width:100%;height:auto">':'<img src="cid:expertaco-logo" width="170" alt="Intranet #ParceirAÇO · Grupo ABR"><img src="cid:profile-photo" width="160" height="160" alt="Foto de '+clean(person.display_name)+'" style="display:block;width:160px;height:160px;object-fit:cover;border-radius:50%;margin:26px auto 18px;border:6px solid #eef1f8">';return `<!doctype html><html><body style="margin:0;background:#f3f5fa;font-family:Arial,sans-serif;color:#1b2440"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="600" style="max-width:600px;background:#fff;border-radius:18px;overflow:hidden"><tr><td style="height:8px;background:#f18800"></td></tr><tr><td align="center">${visual}</td></tr><tr><td align="center" style="padding:28px 34px 12px"><p style="margin:0;color:#f18800;font-size:12px;font-weight:bold;letter-spacing:1.5px">${type==='birthday'?'ANIVERSÁRIO':'ANIVERSÁRIO DE EMPRESA'}</p><h1 style="margin:10px 0 6px;color:#253575;font-size:30px">${clean(tokens(template.headline,person))}</h1><h2 style="margin:0 0 22px;color:#253575;font-size:22px">${clean(person.display_name)}</h2><div style="font-size:16px;line-height:1.7;color:#4f5873">${tokens(template.message_html,person)}</div></td></tr><tr><td align="center" style="padding:20px 34px 32px;color:#7a8298;font-size:12px">Uma mensagem do Grupo ABR · #ParceirAÇO</td></tr></table></td></tr></table></body></html>`;}
 
-async function sendGmail(nodemailer,auth,message,context={}){
-  const options=[
-    {host:'smtp.gmail.com',port:465,secure:true},
-    {host:'smtp.gmail.com',port:587,secure:false,requireTLS:true}
+function smtpOptions(){
+  const host=process.env.IDEAACO_SMTP_HOST||'smtp.gmail.com';
+  const port=Number(process.env.IDEAACO_SMTP_PORT||465);
+  const secure=process.env.IDEAACO_SMTP_SECURE ? process.env.IDEAACO_SMTP_SECURE !== 'false' : port===465;
+  return [
+    {host,port,secure,family:4},
+    {host:'smtp.gmail.com',port:465,secure:true,family:4},
+    {host:'smtp.gmail.com',port:587,secure:false,requireTLS:true,family:4}
   ];
+}
+async function sendGmail(nodemailer,auth,message,context={}){
+  const options=smtpOptions();
   let lastError;
   for(let attempt=0;attempt<options.length;attempt++){
-    const transport=nodemailer.createTransport({...options[attempt],auth,connectionTimeout:10000,greetingTimeout:10000,socketTimeout:20000});
+    const transport=nodemailer.createTransport({
+      ...options[attempt],
+      auth,
+      connectionTimeout:15000,
+      greetingTimeout:10000,
+      socketTimeout:15000,
+      tls:{servername:options[attempt].host}
+    });
     try{
       console.log(JSON.stringify({event:'gmail-send',stage:'connecting',attempt:attempt+1,port:options[attempt].port,...context}));
       const result=await transport.sendMail(message);
@@ -48,7 +61,9 @@ async function sendGmail(nodemailer,auth,message,context={}){
       lastError=error;
       console.error(JSON.stringify({event:'gmail-send',stage:'failed',attempt:attempt+1,port:options[attempt].port,code:error.code||'',message:error.message,...context}));
       if(error.code!=='ETIMEDOUT'||attempt===options.length-1)throw error;
-    }finally{transport.close();}
+    }finally{
+      transport.close();
+    }
   }
   throw lastError;
 }

@@ -1,24 +1,24 @@
-# Intranet #ParceirA«O | Grupo ABR
+# Intranet #ParceirA√áO | Grupo ABR
 
-AplicaÁ„o web interna do Grupo ABR para apoio comercial, comunicaÁ„o interna e automaÁ„o operacional.
+Aplica√ß√£o web interna do Grupo ABR para apoio comercial, comunica√ß√£o interna e automa√ß√£o operacional.
 
 ## O que o sistema faz
 
-- Exibe um playbook de vendas com scripts, objeÁıes, reativaÁ„o, pÛs-venda, crise, Kommo e regras de ouro.
-- Mostra um ranking comercial com base em fonte externa, JSON local ou gravaÁ„o manual.
-- Oferece uma ·rea autenticada do colaborador com perfil, foto e feed interno.
-- Permite administraÁ„o de ·reas, perfis, comunicados e templates de celebraÁ„o.
-- Envia e-mails autom·ticos de anivers·rio e anivers·rio de empresa.
-- Publica conte˙dos est·ticos e assets de apoio como cat·logo e marca.
+- Exibe um playbook de vendas com scripts, obje√ß√µes, reativa√ß√£o, p√≥s-venda, crise, Kommo e regras de ouro.
+- Mostra um ranking comercial com base em fonte externa, JSON local ou grava√ß√£o manual.
+- Oferece uma √°rea autenticada do colaborador com perfil, foto e feed interno.
+- Permite administra√ß√£o de √°reas, perfis, comunicados e templates de celebra√ß√£o.
+- Envia e-mails autom√°ticos de anivers√°rio e anivers√°rio de empresa.
+- Publica conte√∫dos est√°ticos e assets de apoio como cat√°logo e marca.
 
 ## Arquitetura
 
 - `server.js` centraliza o servidor HTTP, a API e o roteamento da SPA.
-- `admin-server.js` concentra permissıes e endpoints administrativos.
-- `public/` contÈm a SPA e as extensıes de interface.
-- `scripts/` contÈm build e automaÁıes de e-mail.
+- `admin-server.js` concentra permiss√µes e endpoints administrativos.
+- `public/` cont√©m a SPA e as extens√µes de interface.
+- `scripts/` cont√©m build e automa√ß√µes de e-mail.
 - `data/ranking.json` serve como fallback local do ranking.
-- `dist/` È a saÌda do build para deploy.
+- `dist/` √© a sa√≠da do build para deploy.
 
 ## Como executar
 
@@ -34,9 +34,9 @@ Se preferir desenvolvimento com watch:
 node --watch server.js
 ```
 
-A aplicaÁ„o sobe em `http://localhost:3000` por padr„o.
+A aplica√ß√£o sobe em `http://localhost:3000` por padr√£o.
 
-## ValidaÁ„o
+## Valida√ß√£o
 
 ```bash
 node --test
@@ -49,9 +49,9 @@ node --check scripts/send-celebrations.js
 
 ## Ranking
 
-O comportamento do ranking È controlado por `SALES_DATA_MODE`:
+O comportamento do ranking √© controlado por `SALES_DATA_MODE`:
 
-- `mock`: lÍ `data/ranking.json`.
+- `mock`: l√™ `data/ranking.json`.
 - `manual`: aceita `POST /api/ranking/manual` com `Authorization: Bearer <ADMIN_TOKEN>`.
 - `api`: consulta `SALES_DATA_URL` e converte CSV ou JSON em contrato interno.
 
@@ -62,36 +62,51 @@ O contrato esperado inclui:
 - `teams` ou `regions`
 - `sellers`
 
-## AutenticaÁ„o e perfil
+## Autentica√ß√£o e perfil
 
-- A autenticaÁ„o È proxied para Neon Auth via `/api/auth/*`.
-- Apenas e-mails `@grupoabr.com.br` s„o aceitos no fluxo corporativo.
+- A autentica√ß√£o √© proxied para Neon Auth via `/api/auth/*`.
+- Apenas e-mails `@grupoabr.com.br` s√£o aceitos no fluxo corporativo.
 - O perfil autenticado usa PostgreSQL em `public.user_profiles`.
 - O feed interno usa `public.feed_posts`.
 
-## CelebraÁıes por e-mail
+## Celebra√ß√µes por e-mail
 
 - O envio usa Gmail SMTP com `IDEAACO_EMAIL_USER` e `IDEAACO_EMAIL_APP_PASSWORD`.
 - Os templates ficam em `public.celebration_email_templates`.
-- As imagens-base e a composiÁ„o do cart„o comemorativo s„o persistidas no banco.
-- O envio autom·tico grava um log em `public.celebration_email_log`.
+- As imagens-base e a composi√ß√£o do cart√£o comemorativo s√£o persistidas no banco.
+- O envio autom√°tico grava um log em `public.celebration_email_log`.
 
 ## Deploy no Render
 
-- O build copia os arquivos p˙blicos para `dist/`.
+- O build copia os arquivos p√∫blicos para `dist/`.
 - O servidor responde na porta `PORT`.
-- O healthcheck È `/api/health`.
-- As vari·veis sensÌveis s„o configuradas no Render como secrets.
+- O healthcheck √© `/api/health`.
+- As vari√°veis sens√≠veis s√£o configuradas no Render como secrets.
 
-## Limpeza e manutenÁ„o
+## Vari√°veis de ambiente
 
-- O modo manual do ranking grava em arquivo e n„o deve ser tratado como persistÍncia definitiva em produÁ„o.
-- O projeto depende de PostgreSQL para perfil, feed, ·reas e templates.
-- Os documentos de marca e vendas originais serviram de base para o conte˙do da intranet.
+- `PORT`: porta do servidor local.
+- `SALES_DATA_MODE`: `mock`, `manual` ou `api`.
+- `SALES_DATA_URL`: fonte externa do ranking quando `SALES_DATA_MODE=api`.
+- `ADMIN_TOKEN`: token para o modo manual do ranking.
+- `ASTER_BASE_URL`, `ASTER_COMPANY_DB`, `ASTER_USERNAME` e `ASTER_PASSWORD`: reservadas para a integra√ß√£o real com o SAP/Aster.
+- `ASTER_AUTH_TOKEN`: hoje √© lido apenas como bearer opcional ao buscar `SALES_DATA_URL`.
+- `KOMMO_API_URL` e `KOMMO_AUTH_TOKEN`: integra√ß√£o com Kommo.
+- `DATABASE_URL`: banco PostgreSQL usado por perfil, feed, √°reas e templates.
+- `NEON_AUTH_BASE_URL`: base do Neon Auth.
+- `APP_ORIGIN`: origem p√∫blica usada nas chamadas autenticadas.
+- `IDEAACO_EMAIL_USER` e `IDEAACO_EMAIL_APP_PASSWORD`: envio de e-mails autom√°ticos.
+- `IDEAACO_SMTP_HOST`, `IDEAACO_SMTP_PORT` e `IDEAACO_SMTP_SECURE`: par√¢metros SMTP opcionais.
+- `CORS_ORIGIN`: n√£o √© usado pelo servidor atual.
+## Limpeza e manuten√ß√£o
 
-## PrÛximos cuidados
+- O modo manual do ranking grava em arquivo e n√£o deve ser tratado como persist√™ncia definitiva em produ√ß√£o.
+- O projeto depende de PostgreSQL para perfil, feed, √°reas e templates.
+- Os documentos de marca e vendas originais serviram de base para o conte√∫do da intranet.
 
-- Confirmar com a lideranÁa comercial qualquer atualizaÁ„o de produto ou discurso.
+## Pr√≥ximos cuidados
+
+- Confirmar com a lideran√ßa comercial qualquer atualiza√ß√£o de produto ou discurso.
 - Validar o contrato real da planilha de ranking.
-- Revisar o comportamento de autenticaÁ„o antes de expandir permissıes.
-- Monitorar o envio SMTP em produÁ„o apÛs a correÁ„o de timeout.
+- Revisar o comportamento de autentica√ß√£o antes de expandir permiss√µes.
+- Monitorar o envio SMTP em produ√ß√£o ap√≥s a corre√ß√£o de timeout.

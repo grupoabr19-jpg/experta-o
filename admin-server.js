@@ -83,6 +83,23 @@ module.exports = function createAdminApi({ db, authenticatedUser, ensureProfile,
       const result = await db().query('SELECT p.user_id,p.email,p.display_name,p.role,p.area_id,p.active,p.created_at,a.name area_name FROM public.user_profiles p LEFT JOIN public.portal_areas a ON a.id=p.area_id ORDER BY p.display_name');
       return send(res, 200, { users: result.rows });
     }
+    if (req.method === 'POST') {
+      const input = await parseBody(req);
+      const displayName = cleanText(input.displayName, 120);
+      const email = cleanText(input.email, 180).toLowerCase();
+      const role = cleanText(input.role, 30) || 'member';
+      const areaId = cleanText(input.areaId, 80) || null;
+      const userId = cleanText(input.userId, 160) || `manual:${email}`;
+      if (!displayName || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return send(res, 400, { error: 'Informe nome e e-mail válidos.' });
+      if (!(role in ROLE_RANK)) return send(res, 400, { error: 'Perfil inválido.' });
+      const existing = await db().query('SELECT user_id FROM public.user_profiles WHERE email=$1 OR user_id=$2', [email, userId]);
+      if (existing.rowCount) return send(res, 409, { error: 'Já existe um perfil com esse e-mail ou identificador.' });
+      const created = await db().query(
+        'INSERT INTO public.user_profiles(user_id,email,display_name,role,area_id,active) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
+        [userId, email, displayName, role, areaId, input.active !== false]
+      );
+      return send(res, 201, created.rows[0]);
+    }
     if (req.method === 'PUT') {
       const input = await parseBody(req); const userId = cleanText(input.userId, 160); const role = cleanText(input.role, 30); const areaId = cleanText(input.areaId, 80) || null;
       if (!userId || !(role in ROLE_RANK)) return send(res, 400, { error: 'Perfil ou papel inválido.' });

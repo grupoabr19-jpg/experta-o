@@ -15,13 +15,21 @@ services:
         sync: false
       - key: SALES_DATA_URL
         value: https://docs.google.com/spreadsheets/d/1JIh_mw9_VH_EbRLjbZ996N5w4-BOhDHAquRdwvgqtxc/gviz/tq?tqx=out:csv&sheet=Ranking_Saida
-      - key: ASTER_API_URL
+      - key: ASTER_BASE_URL
+        sync: false
+      - key: ASTER_COMPANY_DB
+        sync: false
+      - key: ASTER_USERNAME
+        sync: false
+      - key: ASTER_PASSWORD
         sync: false
       - key: ASTER_AUTH_TOKEN
         sync: false
       - key: KOMMO_API_URL
         sync: false
       - key: KOMMO_AUTH_TOKEN
+        sync: false
+      - key: DATABASE_URL
         sync: false
       - key: IDEAACO_EMAIL_USER
         sync: false

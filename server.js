@@ -140,7 +140,19 @@ async function authenticatedUser(req) {
   return user&&corporateEmail(user.email)?{id:String(user.id),email:String(user.email).toLowerCase(),name:cleanText(user.name||user.email.split('@')[0],120)}:null;
 }
 const safeUrl=value=>{const url=cleanText(value,500);if(!url)return'';try{const parsed=new URL(url);return ['http:','https:'].includes(parsed.protocol)?parsed.toString():'';}catch{return'';}};
-async function ensureProfile(user){const result=await db().query(`INSERT INTO public.user_profiles(user_id,email,display_name) VALUES($1,$2,$3) ON CONFLICT(user_id) DO UPDATE SET email=EXCLUDED.email RETURNING *`,[user.id,user.email,user.name]);return result.rows[0];}
+async function ensureProfile(user){
+  const existingByUserId = await db().query('SELECT * FROM public.user_profiles WHERE user_id=$1', [user.id]);
+  if (existingByUserId.rowCount) {
+    const result = await db().query('UPDATE public.user_profiles SET email=$2,updated_at=now() WHERE user_id=$1 RETURNING *', [user.id, user.email]);
+    return result.rows[0];
+  }
+  const existingByEmail = await db().query('SELECT * FROM public.user_profiles WHERE lower(email)=lower($1) ORDER BY created_at ASC LIMIT 1', [user.email]);
+  if (existingByEmail.rowCount) {
+    const result = await db().query("UPDATE public.user_profiles SET user_id=$1,email=$2,display_name=COALESCE(NULLIF(display_name,''),$3),updated_at=now() WHERE user_id=$4 RETURNING *", [user.id, user.email, user.name, existingByEmail.rows[0].user_id]);
+    return result.rows[0];
+  }
+  const result=await db().query(`INSERT INTO public.user_profiles(user_id,email,display_name) VALUES($1,$2,$3) ON CONFLICT(user_id) DO UPDATE SET email=EXCLUDED.email RETURNING *`,[user.id,user.email,user.name]);return result.rows[0];
+}
 function publicProfile(row){const {photo_data,photo_mime,...profile}=row;return {...profile,has_photo:Boolean(photo_data),photo_url:photo_data?`/api/profile/photo?id=${encodeURIComponent(row.user_id)}`:''};}
 function jpegDimensions(buffer){let offset=2;while(offset<buffer.length){if(buffer[offset]!==0xff){offset++;continue;}const marker=buffer[offset+1];const length=buffer.readUInt16BE(offset+2);if([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf].includes(marker))return{height:buffer.readUInt16BE(offset+5),width:buffer.readUInt16BE(offset+7)};offset+=2+length;}return null;}
 function decodeProfilePhoto(value){if(!value)return null;const match=String(value).match(/^data:(image\/jpeg);base64,([A-Za-z0-9+/=]+)$/);if(!match)throw new Error('PHOTO_INVALID');const buffer=Buffer.from(match[2],'base64');if(!buffer.length||buffer.length>650000)throw new Error('PHOTO_INVALID');const size=jpegDimensions(buffer);if(!size||size.width!==400||size.height!==400)throw new Error('PHOTO_DIMENSIONS');return{buffer,mime:match[1]};}

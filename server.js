@@ -178,6 +178,19 @@ async function handleProfile(req,res){
   return send(res,405,{error:'Método não permitido.'});
 }
 async function handleProfilePhoto(req,res,url){const viewer=await authenticatedUser(req);if(!viewer)return send(res,401,{error:'Faça login.'});const userId=cleanText(url.searchParams.get('id'),180);const result=await db().query('SELECT photo_data,photo_mime FROM public.user_profiles WHERE user_id=$1 AND active=true',[userId]);const photo=result.rows[0];if(!photo?.photo_data)return send(res,404,{error:'Foto não encontrada.'});res.writeHead(200,{'Content-Type':photo.photo_mime,'Cache-Control':'private, max-age=3600','Content-Length':photo.photo_data.length});res.end(photo.photo_data);}
+async function handleProfiles(req,res,url){
+  const viewer=await authenticatedUser(req);if(!viewer)return send(res,401,{error:'Faça login para consultar perfis.'});
+  await ensureProfileColumns();
+  const query=cleanText(url.searchParams.get('q'),80);
+  const userId=cleanText(url.searchParams.get('id'),180);
+  const params=[];let where='p.active=true';
+  if(userId){params.push(userId);where+=' AND p.user_id=$'+params.length;}
+  else if(query){params.push('%'+query.toLowerCase()+'%');where+=` AND (lower(p.display_name) LIKE $${params.length} OR lower(p.email) LIKE $${params.length} OR lower(COALESCE(p.bio,'')) LIKE $${params.length} OR lower(COALESCE(p.mood,'')) LIKE $${params.length} OR lower(COALESCE(a.name,'')) LIKE $${params.length})`;}
+  const limit=userId?1:18;
+  params.push(limit);
+  const result=await db().query(`SELECT p.user_id,p.email,p.display_name,p.bio,p.mood,p.linkedin_url,p.instagram_url,p.facebook_url,p.signature_url,p.photo_data IS NOT NULL AS has_photo,a.name area_name FROM public.user_profiles p LEFT JOIN public.portal_areas a ON a.id=p.area_id WHERE ${where} ORDER BY p.display_name LIMIT $${params.length}`,params);
+  return send(res,200,{profiles:result.rows.map(publicProfile)});
+}
 let feedColumnsReady=false;
 async function ensureFeedColumns(){if(feedColumnsReady)return;await db().query(`ALTER TABLE public.feed_posts ADD COLUMN IF NOT EXISTS visibility text NOT NULL DEFAULT 'general', ADD COLUMN IF NOT EXISTS area_id uuid`);feedColumnsReady=true;}
 const feedProfileSelect='u.display_name,u.bio,u.linkedin_url,u.instagram_url,u.facebook_url,u.signature_url,u.photo_data IS NOT NULL AS has_photo';
@@ -221,6 +234,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/celebration-templates') { try{return await adminApi.celebrationTemplates(req,res);}catch(error){console.error('Falha nos templates:',error.message);return send(res,502,{error:'Não foi possível acessar os templates.'});} }
   if (url.pathname === '/api/announcements') { try{return await adminApi.announcements(req,res,url);}catch(error){console.error('Falha nos comunicados:',error.message);return send(res,502,{error:'Não foi possível acessar os comunicados.'});} }  if (url.pathname === '/api/profile/photo' && req.method === 'GET') { try{return await handleProfilePhoto(req,res,url);}catch(error){console.error('Falha na foto:',error.message);return send(res,502,{error:'Não foi possível carregar a foto.'});} }
   if (url.pathname === '/api/profile') { try{return await handleProfile(req,res);}catch(error){console.error('Falha no perfil:',error.message);return send(res,502,{error:'Não foi possível acessar o perfil agora.'});} }
+  if (url.pathname === '/api/profiles' && req.method === 'GET') { try{return await handleProfiles(req,res,url);}catch(error){console.error('Falha na consulta de perfis:',error.message);return send(res,502,{error:'Não foi possível consultar perfis agora.'});} }
   if (url.pathname === '/api/feed') { try{return await handleFeed(req,res,url);}catch(error){console.error('Falha no feed:',error.message);return send(res,502,{error:'Não foi possível acessar o feed agora.'});} }  if (url.pathname.startsWith('/api/auth/')) {
     const authRoute=url.pathname.slice('/api/auth/'.length);
     if (!['GET','POST'].includes(req.method)) return send(res,405,{error:'Método não permitido.'});

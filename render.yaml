@@ -41,6 +41,12 @@ services:
         sync: false
       - key: IDEAACO_SMTP_SECURE
         sync: false
+      - key: CELEBRATION_EMAIL_PROVIDER
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: CELEBRATION_EMAIL_FROM
+        sync: false
       - key: NEON_AUTH_BASE_URL
         value: https://ep-little-union-a69b2ecz.neonauth.us-west-2.aws.neon.tech/neondb/auth
       - key: APP_ORIGIN

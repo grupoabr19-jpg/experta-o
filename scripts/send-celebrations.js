@@ -46,6 +46,41 @@ function shouldRetrySmtp(error){
   const message=String(error.message||'').toLowerCase();
   return ['ETIMEDOUT','ESOCKET','ECONNECTION','ECONNRESET','EHOSTUNREACH','ENETUNREACH'].includes(code)||message.includes('timeout')||message.includes('timed out');
 }
+function parseAddress(value){
+  const raw=String(value||'').trim(),match=raw.match(/^(.*)<([^>]+)>$/);
+  return match?{name:match[1].trim().replace(/^"|"$/g,''),email:match[2].trim()}:{email:raw};
+}
+function parseRecipients(value){return String(value||'').split(',').map(item=>item.trim()).filter(Boolean).map(email=>({email}));}
+function attachmentContent(attachment){
+  const content=attachment.content||fs.readFileSync(attachment.path);
+  return Buffer.isBuffer(content)?content.toString('base64'):Buffer.from(String(content)).toString('base64');
+}
+async function sendBrevo(message,context={}){
+  const apiKey=process.env.BREVO_API_KEY;
+  if(!apiKey)throw new Error('BREVO_API_KEY não configurada.');
+  const from=parseAddress(process.env.CELEBRATION_EMAIL_FROM||message.from);
+  const payload={
+    sender:from,
+    to:parseRecipients(message.to),
+    subject:message.subject,
+    htmlContent:message.html,
+    attachment:(message.attachments||[]).map(attachment=>({
+      name:attachment.filename,
+      content:attachmentContent(attachment),
+      contentId:attachment.cid||undefined
+    }))
+  };
+  const cc=parseRecipients(message.cc);if(cc.length)payload.cc=cc;
+  console.log(JSON.stringify({event:'brevo-send',stage:'sending',...context}));
+  const response=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':apiKey,'accept':'application/json','Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if(!response.ok){const body=await response.text().catch(()=>'');console.error(JSON.stringify({event:'brevo-send',stage:'failed',status:response.status,body:body.slice(0,500),...context}));throw new Error('Brevo respondeu '+response.status);}
+  console.log(JSON.stringify({event:'brevo-send',stage:'sent',...context}));
+  return {provider:'brevo',status:response.status};
+}
+async function sendEmail(nodemailer,auth,message,context={}){
+  if(process.env.BREVO_API_KEY||String(process.env.CELEBRATION_EMAIL_PROVIDER||'').toLowerCase()==='brevo')return sendBrevo(message,context);
+  return sendGmail(nodemailer,auth,message,context);
+}
 async function sendGmail(nodemailer,auth,message,context={}){
   const options=smtpOptions();
   let lastError;
@@ -84,7 +119,7 @@ async function sendCelebrationTest({recipient,userId,type='birthday'}){
   const template=(await pool.query('SELECT event_type,subject_template,headline,message_html,image_base,image_mime,photo_x_pct,photo_y_pct,photo_size_pct FROM public.celebration_email_templates WHERE event_type=$1 AND template_year=$2 AND active=true',[type,year])).rows[0];
   if(!template?.image_base)throw new Error('Salve uma imagem-base ativa antes do teste.');
   const card=await personalizedCard(template,person,logo);if(!card)throw new Error('Não foi possível gerar o cartão.');
-  await sendGmail(nodemailer,{user,pass},{from:`Intranet #ParceirAÇO · Grupo ABR <${user}>`,to:recipient,subject:'[TESTE] '+tokens(template.subject_template,person),html:emailHtml(person,type,template,true),attachments:[{filename:'cartao-personalizado.jpg',content:card,contentType:'image/jpeg',cid:'celebration-card'}]},{type,recipient,mode:'test'});
+  await sendEmail(nodemailer,{user,pass},{from:`Intranet #ParceirAÇO · Grupo ABR <${user}>`,to:recipient,subject:'[TESTE] '+tokens(template.subject_template,person),html:emailHtml(person,type,template,true),attachments:[{filename:'cartao-personalizado.jpg',content:card,contentType:'image/jpeg',cid:'celebration-card'}]},{type,recipient,mode:'test'});
   return {sent:true,recipient,type};
  }finally{await pool.end();}
 }
@@ -103,7 +138,7 @@ async function sendCelebrations(){
     const template=templates[type]||defaults[type],card=await personalizedCard(template,person,logo),attachments=[{filename:'expertaco.png',path:logo,cid:'expertaco-logo'}];
     if(card)attachments.push({filename:'cartao-personalizado.jpg',content:card,contentType:'image/jpeg',cid:'celebration-card'});
     else attachments.push(person.photo_data?{filename:'perfil.jpg',content:person.photo_data,contentType:person.photo_mime,cid:'profile-photo'}:{filename:'expertaco-perfil.png',path:logo,cid:'profile-photo'});
-    await sendGmail(nodemailer,{user,pass},{from:`Intranet #ParceirAÇO · Grupo ABR <${user}>`,to:person.email,cc:process.env.CELEBRATION_EMAIL_CC||undefined,subject:tokens(template.subject_template,person),html:emailHtml(person,type,template,Boolean(card)),attachments},{type,recipient:person.email,mode:'automatic'});
+    await sendEmail(nodemailer,{user,pass},{from:`Intranet #ParceirAÇO · Grupo ABR <${user}>`,to:person.email,cc:process.env.CELEBRATION_EMAIL_CC||undefined,subject:tokens(template.subject_template,person),html:emailHtml(person,type,template,Boolean(card)),attachments},{type,recipient:person.email,mode:'automatic'});
     await pool.query('INSERT INTO public.celebration_email_log(user_id,event_type,celebration_year,recipient_email) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[person.user_id,type,year,person.email]);sent++;
   }
   console.log(JSON.stringify({status:'ok',year,people:people.length,sent}));return{year,people:people.length,sent};
@@ -111,4 +146,5 @@ async function sendCelebrations(){
 }
 if(require.main===module)sendCelebrations().catch(error=>{console.error(error.message);process.exitCode=1;});
 module.exports={sendCelebrations,sendCelebrationTest,personalizedCard};
+
 

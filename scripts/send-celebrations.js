@@ -74,8 +74,9 @@ async function sendBrevo(message,context={}){
   console.log(JSON.stringify({event:'brevo-send',stage:'sending',...context}));
   const response=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':apiKey,'accept':'application/json','Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(!response.ok){const body=await response.text().catch(()=>'');console.error(JSON.stringify({event:'brevo-send',stage:'failed',status:response.status,body:body.slice(0,500),...context}));throw new Error('Brevo respondeu '+response.status);}
-  console.log(JSON.stringify({event:'brevo-send',stage:'sent',...context}));
-  return {provider:'brevo',status:response.status};
+  const result=await response.json().catch(()=>({}));
+  console.log(JSON.stringify({event:'brevo-send',stage:'sent',status:response.status,messageId:result.messageId||'',...context}));
+  return {provider:'brevo',status:response.status,messageId:result.messageId||''};
 }
 async function sendEmail(nodemailer,auth,message,context={}){
   if(process.env.BREVO_API_KEY||String(process.env.CELEBRATION_EMAIL_PROVIDER||'').toLowerCase()==='brevo')return sendBrevo(message,context);

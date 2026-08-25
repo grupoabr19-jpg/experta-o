@@ -86,7 +86,8 @@
     bindCards();renderNav();
   };
 
-  function applyRoute(){
+  async function applyRoute(){
+    if(window.portalRequireSession&&!(await window.portalRequireSession()))return;
     const current=clean(route()),home=current==='visao';
     document.body.dataset.route=current;
     document.querySelector('#inicio').hidden=!home;

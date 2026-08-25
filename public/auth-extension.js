@@ -9,7 +9,7 @@
   );
 
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  let pendingPhotoData='',feedScope='general',cropBitmap=null,cropState={x:0,y:0,zoom:1,dragging:false,startX:0,startY:0,baseX:0,baseY:0};
+  let pendingPhotoData='',feedScope='general',loginRedirect='',cropBitmap=null,cropState={x:0,y:0,zoom:1,dragging:false,startX:0,startY:0,baseX:0,baseY:0};
   const normalize=data=>data?.user?data:data?.data?.user?data.data:data?.session?.user?data.session:null;
   async function api(url,options={}){const response=await fetch(url,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||'Nao foi possivel concluir a operacao.');return data;}
   const authApi=(route,options)=>api('/api/auth/'+route,options);
@@ -25,6 +25,27 @@
 
   function loginMarkup(message=''){
     return '<div class="auth-shell"><div class="auth-copy"><span class="section-kicker">AMBIENTE CORPORATIVO</span><h3>Entre na #ParceirACO</h3><p>Use exclusivamente seu endereco profissional terminado em <b>@grupoabr.com.br</b>.</p><div class="warning"><b>Acesso protegido</b><span>Nao compartilhe sua senha ou sua sessao com outras pessoas.</span></div></div><div class="auth-panel">'+(message?'<p class="auth-message">'+esc(message)+'</p>':'')+'<div class="auth-tabs"><button type="button" class="active" data-auth-tab="login">Entrar</button><button type="button" data-auth-tab="register">Criar conta</button></div><form id="loginForm" class="auth-form"><label>E-mail corporativo<input name="email" type="email" required autocomplete="email" placeholder="nome@grupoabr.com.br"></label><label>Senha<input name="password" type="password" minlength="8" required autocomplete="current-password"></label><button class="button primary" type="submit">Entrar</button></form><form id="registerForm" class="auth-form" hidden><label>Nome completo<input name="name" required autocomplete="name"></label><label>E-mail corporativo<input name="email" type="email" required autocomplete="email" placeholder="nome@grupoabr.com.br"></label><label>Senha<input name="password" type="password" minlength="8" required autocomplete="new-password"></label><small>Use no minimo oito caracteres.</small><button class="button primary" type="submit">Criar conta</button></form></div></div>';
+  }
+
+  function requestedPath(){
+    return location.pathname+location.search+location.hash;
+  }
+
+  function showLoginGate(message='Entre para acessar a intranet.'){
+    loginRedirect=requestedPath();
+    document.body.classList.add('auth-gate-active');
+    updateHeader(null);
+    const home=document.querySelector('#inicio'),quick=document.querySelector('.quick-panel'),contacts=document.querySelector('#contatos'),summary=document.querySelector('#searchSummary'),host=document.querySelector('#playbookContent');
+    if(home)home.hidden=true;if(quick)quick.hidden=true;if(contacts)contacts.hidden=true;if(summary)summary.hidden=true;
+    if(host)host.innerHTML='<section class="playbook-section content-section route-page login-gate-page"><header class="section-heading"><div><span class="section-kicker">ACESSO RESTRITO</span><h1>Login da intranet</h1></div><p>Depois de entrar, voce volta automaticamente para o link que tentou abrir.</p></header>'+loginMarkup(message)+'</section>';
+  }
+
+  async function requireSession(){
+    const session=await currentSession();
+    updateHeader(session);
+    if(session){document.body.classList.remove('auth-gate-active');return session;}
+    showLoginGate();
+    return null;
   }
 
   function profileMarkup(session,profile){
@@ -90,7 +111,7 @@
     const feedTab=event.target.closest('[data-feed-scope]');
     if(feedTab){feedScope=feedTab.dataset.feedScope==='team'?'team':'general';await renderFeed();return;}
     if(event.target.closest('#applyPhotoCrop')){applyCrop();return;}
-    if(event.target.closest('[data-auth-logout]')){try{await authApi('sign-out',{method:'POST',body:'{}'});}catch{}updateHeader(null);renderArea();renderFeed();}
+    if(event.target.closest('[data-auth-logout]')){try{await authApi('sign-out',{method:'POST',body:'{}'});}catch{}updateHeader(null);showLoginGate('Voce saiu da conta. Entre novamente para acessar a intranet.');}
   });
 
   document.addEventListener('pointerdown',event=>{
@@ -116,7 +137,7 @@
     if(!['loginForm','registerForm','profileForm','postForm'].includes(event.target.id))return;
     event.preventDefault();const form=event.target,button=form.querySelector('button[type="submit"]'),values=Object.fromEntries(new FormData(form).entries()),original=button.textContent;button.disabled=true;button.textContent='Aguarde...';
     try{
-      if(form.id==='loginForm'||form.id==='registerForm'){if(!/@grupoabr\.com\.br$/i.test(values.email||''))throw new Error('Use seu e-mail @grupoabr.com.br.');await authApi(form.id==='loginForm'?'sign-in/email':'sign-up/email',{method:'POST',body:JSON.stringify(values)});toast(form.id==='loginForm'?'Login realizado.':'Conta criada com sucesso.');await renderArea();await renderFeed();}
+      if(form.id==='loginForm'||form.id==='registerForm'){if(!/@grupoabr\.com\.br$/i.test(values.email||''))throw new Error('Use seu e-mail @grupoabr.com.br.');await authApi(form.id==='loginForm'?'sign-in/email':'sign-up/email',{method:'POST',body:JSON.stringify(values)});toast(form.id==='loginForm'?'Login realizado.':'Conta criada com sucesso.');const target=loginRedirect||requestedPath()||'/';if(document.body.classList.contains('auth-gate-active')){location.href=target;return;}await renderArea();await renderFeed();}
       else if(form.id==='profileForm'){await api('/api/profile',{method:'PUT',body:JSON.stringify({...values,photoData:pendingPhotoData||undefined})});pendingPhotoData='';cropBitmap=null;toast('Perfil atualizado.');await renderArea();}
       else{feedScope=values.visibility==='team'?'team':'general';await api('/api/feed',{method:'POST',body:JSON.stringify(values)});toast('Publicacao enviada.');await renderFeed();}
     }catch(error){toast(error.message);button.disabled=false;button.textContent=original;}
@@ -126,5 +147,7 @@
     if(document.body.dataset.route==='conta'&&document.querySelector('#authArea:not([data-ready])')){document.querySelector('#authArea').dataset.ready='1';renderArea();}
     if(document.body.dataset.route==='feed'&&document.querySelector('#feedArea:not([data-ready])')){document.querySelector('#feedArea').dataset.ready='1';renderFeed();}
   }).observe(document.querySelector('#playbookContent'),{childList:true,subtree:true});
+  window.portalRequireSession=requireSession;
+  window.portalShowLoginGate=showLoginGate;
   renderNav();renderContent();observeSections();refreshHeader();
 })();

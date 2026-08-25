@@ -48,7 +48,7 @@ module.exports = function createAdminApi({ db, authenticatedUser, ensureProfile,
   }
   async function me(req, res) {
     const ctx = await requireAccess(req, res); if (!ctx) return;
-    return send(res, 200, { profile: ctx.profile, permissions: ctx.permissions, resources: RESOURCES, isSuperAdmin: ctx.profile.role === 'super_admin', canModerateFeed: ctx.profile.role === 'staff' || ctx.profile.role === 'super_admin', canManageAnnouncements: allowed(ctx, 'hero_announcements', 'manage'), canManageCelebrations: allowed(ctx, 'celebration_templates', 'manage') });
+    return send(res, 200, { profile: ctx.profile, permissions: ctx.permissions, resources: RESOURCES, isSuperAdmin: ctx.profile.role === 'super_admin', canModerateFeed: ctx.profile.role === 'staff' || ctx.profile.role === 'super_admin', canManageAnnouncements: allowed(ctx, 'hero_announcements', 'manage'), canManageCelebrations: allowed(ctx, 'celebration_templates', 'manage'), canManageRanking: allowed(ctx, 'ranking', 'manage') || ctx.profile.role === 'super_admin' });
   }
   async function areas(req, res) {
     const ctx = await requireAccess(req, res); if (!ctx) return;

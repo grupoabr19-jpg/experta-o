@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const createAdminApi = require('./admin-server');
 const { sendCelebrations, sendCelebrationTest } = require('./scripts/send-celebrations');
 const { rankingFromCsv } = require('./csv-ranking-sheets');
+const { rankingFromXlsx } = require('./ranking-import');
 
 const root = __dirname;
 const publicDir = fs.existsSync(path.join(root, 'dist')) ? path.join(root, 'dist') : path.join(root, 'public');
@@ -41,6 +42,18 @@ async function getRanking() {
     if (!validRanking(data)) throw new Error('Contrato de ranking inválido');
     return { ...data, source: 'api' };
   } finally { clearTimeout(timer); }
+}
+
+function parseRankingUpload(filename, buffer) {
+  if (/\.csv$/i.test(filename)) return rankingFromCsv(buffer.toString('utf8'));
+  if (/\.xlsx$/i.test(filename) || /\.xls$/i.test(filename)) return rankingFromXlsx(buffer);
+  throw new Error('Formato inválido. Envie .xlsx, .xls ou .csv.');
+}
+
+function parseBase64Upload(input) {
+  const match = String(input || '').match(/^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw new Error('Arquivo inválido.');
+  return { mime: match[1], buffer: Buffer.from(match[2], 'base64') };
 }
 
 function authorized(req) {
@@ -266,6 +279,22 @@ const server = http.createServer(async (req, res) => {
       fs.writeFileSync(rankingFile, JSON.stringify(saved, null, 2));
       return send(res, 200, { ...saved, source: 'manual' });
     } catch { return send(res, 400, { error: 'Não foi possível processar os dados.' }); }
+  }
+  if (url.pathname === '/api/ranking/import' && req.method === 'POST') {
+    try {
+      const ctx = await adminApi.authorize(req, res, 'ranking', 'manage');
+      if (!ctx) return;
+      const body = await parseBody(req, 20000000);
+      const filename = cleanText(body.filename, 180);
+      const upload = parseBase64Upload(body.fileData);
+      const data = parseRankingUpload(filename, upload.buffer);
+      if (!validRanking(data)) return send(res, 400, { error: 'Não foi possível identificar o contrato do ranking.' });
+      const saved = { ...data, source: 'manual', importedFrom: filename, updatedAt: new Date().toISOString() };
+      fs.writeFileSync(rankingFile, JSON.stringify(saved, null, 2));
+      return send(res, 200, { ...saved, source: 'manual' });
+    } catch (error) {
+      return send(res, 400, { error: error.message || 'Não foi possível importar a planilha.' });
+    }
   }
   if (url.pathname.startsWith('/api/')) return send(res, 404, { error: 'Endpoint não encontrado.' });
   serveFile(req, res);

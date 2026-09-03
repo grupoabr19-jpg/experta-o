@@ -14,17 +14,9 @@ services:
       - key: ADMIN_TOKEN
         sync: false
       - key: SALES_DATA_URL
-        value: https://docs.google.com/spreadsheets/d/1JIh_mw9_VH_EbRLjbZ996N5w4-BOhDHAquRdwvgqtxc/gviz/tq?tqx=out:csv&sheet=Ranking_Saida
-      - key: ASTER_BASE_URL
-        sync: false
-      - key: ASTER_COMPANY_DB
-        sync: false
-      - key: ASTER_USERNAME
-        sync: false
-      - key: ASTER_PASSWORD
-        sync: false
-      - key: ASTER_AUTH_TOKEN
-        sync: false
+        value: https://docs.google.com/spreadsheets/d/10XOSE1z8HucS0_5K_8iX8VFg6s0ASZJwDAMfo0uacIA/gviz/tq?tqx=out:csv&sheet=2_Ranking%20por%20Vendedor&range=A5:K1000
+      - key: SALES_TEAM_DATA_URL
+        value: https://docs.google.com/spreadsheets/d/10XOSE1z8HucS0_5K_8iX8VFg6s0ASZJwDAMfo0uacIA/gviz/tq?tqx=out:csv&sheet=3_Ranking%20por%20Regi%C3%A3o&range=A5:H1000
       - key: KOMMO_API_URL
         sync: false
       - key: KOMMO_AUTH_TOKEN

@@ -89,8 +89,6 @@ O contrato esperado inclui:
 - `SALES_DATA_MODE`: `mock`, `manual` ou `api`.
 - `SALES_DATA_URL`: fonte externa do ranking quando `SALES_DATA_MODE=api`.
 - `ADMIN_TOKEN`: token para o modo manual do ranking.
-- `ASTER_BASE_URL`, `ASTER_COMPANY_DB`, `ASTER_USERNAME` e `ASTER_PASSWORD`: reservadas para a integração real com o SAP/Aster.
-- `ASTER_AUTH_TOKEN`: hoje é lido apenas como bearer opcional ao buscar `SALES_DATA_URL`.
 - `KOMMO_API_URL` e `KOMMO_AUTH_TOKEN`: integração com Kommo.
 - `DATABASE_URL`: banco PostgreSQL usado por perfil, feed, áreas e templates.
 - `NEON_AUTH_BASE_URL`: base do Neon Auth.

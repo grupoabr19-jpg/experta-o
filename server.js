@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const createAdminApi = require('./admin-server');
 const { sendCelebrations, sendCelebrationTest } = require('./scripts/send-celebrations');
 const { rankingFromCsv } = require('./csv-ranking-sheets');
+const { rankingFromSpreadsheetCsv } = require('./ranking-spreadsheet');
 const { rankingFromXlsx } = require('./ranking-import');
 
 const root = __dirname;
@@ -32,13 +33,14 @@ function validRanking(input) {
 async function getRanking() {
   if (mode !== 'api') return { ...readRanking(), source: mode };
   if (!process.env.SALES_DATA_URL) throw new Error('SALES_DATA_URL não configurada');
+  if (!process.env.SALES_TEAM_DATA_URL) throw new Error('SALES_TEAM_DATA_URL não configurada');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch(process.env.SALES_DATA_URL, { signal: controller.signal, headers: process.env.ASTER_AUTH_TOKEN ? { Authorization: `Bearer ${process.env.ASTER_AUTH_TOKEN.replace(/^Bearer\s+/i, '')}` } : {} });
-    if (!response.ok) throw new Error(`Fonte externa respondeu ${response.status}`);
-    const raw = await response.text();
-    const data = raw.trim().startsWith('{') ? JSON.parse(raw) : rankingFromCsv(raw);
+    const responses = await Promise.all([process.env.SALES_DATA_URL, process.env.SALES_TEAM_DATA_URL].map(url => fetch(url, { signal: controller.signal })));
+    if (responses.some(response => !response.ok)) throw new Error('Fonte externa respondeu com erro');
+    const [sellerRaw, teamRaw] = await Promise.all(responses.map(response => response.text()));
+    const data = rankingFromSpreadsheetCsv(sellerRaw, teamRaw);
     if (!validRanking(data)) throw new Error('Contrato de ranking inválido');
     return { ...data, source: 'api' };
   } finally { clearTimeout(timer); }

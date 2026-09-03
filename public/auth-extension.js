@@ -43,7 +43,7 @@
   async function requireSession(){
     const session=await currentSession();
     updateHeader(session);
-    if(session){document.body.classList.remove('auth-gate-active');return session;}
+    if(session){document.body.classList.remove('auth-gate-active');window.loadRanking?.();return session;}
     showLoginGate();
     return null;
   }

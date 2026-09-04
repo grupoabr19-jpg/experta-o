@@ -1,3 +1,4 @@
+.user-header-logout{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--deep);font:inherit;font-size:10px;font-weight:800;cursor:pointer}.user-header-logout:hover{border-color:var(--orange);color:var(--orange)}
 :root{--ticker:44px;--sidebar:272px}
 body{font-size:16px;line-height:1.55}
 .ticker{height:44px;font-size:12px}

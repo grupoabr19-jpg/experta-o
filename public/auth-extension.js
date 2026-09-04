@@ -20,7 +20,12 @@
     const user=session?.user,link=document.createElement('a');
     link.className='user-header';link.href='/conta';
     link.innerHTML=user?'<span class="user-header-avatar">'+esc((user.name||user.email||'U').charAt(0).toUpperCase())+'</span><span>Bem-vindo(a), <b>'+esc(user.name||user.email.split('@')[0])+'</b></span>':'<span class="user-header-avatar">U</span><span>Entrar</span>';
-    host.prepend(link);
+      host.prepend(link);
+      if(user){
+        const logout=document.createElement('button');
+        logout.type='button';logout.className='user-header-logout';logout.dataset.authLogout='1';logout.textContent='Sair';logout.setAttribute('aria-label','Sair da conta');
+        host.insertBefore(logout,link.nextSibling);
+      }
   }
 
   function loginMarkup(message=''){

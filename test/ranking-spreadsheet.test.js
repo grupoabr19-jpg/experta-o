@@ -10,6 +10,7 @@ test('converte os rankings prontos das abas de vendedores e regioes', () => {
   assert.equal(ranking.sellers[0].tons, 21.13722);
   assert.equal(ranking.sellers[0].attainment, 23.3);
   assert.equal(ranking.teams[0].name, 'BRAG. PTA.');
+  assert.equal(ranking.teams[0].leader, 'Alessandro');
   assert.equal(ranking.teams[0].tons, 27.15118);
   assert.equal(ranking.teams[0].attainment, 13.6);
 });

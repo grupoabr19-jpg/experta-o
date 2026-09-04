@@ -59,12 +59,23 @@ function sellerRankingFromCsv(text) {
 }
 
 function teamRankingFromCsv(text) {
+  const leaders = {
+    'BRAG. PTA.': 'Alessandro',
+    'JUNDIAÍ': 'Dyovana',
+    'VARGINHA': 'Peterson',
+    'POUSO ALEGRE': 'Paola',
+    'POÇOS': 'José Felipe',
+    'ITAJUBÁ': 'Jennifer',
+    'EXTREMA': 'Gustavo',
+    'CAMBUÍ': 'Juliano'
+  };
   return rankedRows(text).map(row => ({
     id: `team-${row[0]}`,
     position: Number(row[0]),
     name: row[1],
     route: row[1],
     role: 'Equipe',
+    leader: leaders[row[1].trim().toUpperCase()] || '',
     salesAmount: null,
     targetAmount: null,
     challengeTargetAmount: null,

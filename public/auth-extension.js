@@ -15,7 +15,7 @@
   const authApi=(route,options)=>api('/api/auth/'+route,options);
 
   function updateHeader(session){
-    document.querySelectorAll('.user-header').forEach(item=>item.remove());
+    document.querySelectorAll('.user-header,.user-header-logout').forEach(item=>item.remove());
     const host=document.querySelector('.header-actions');if(!host)return;
     const user=session?.user,link=document.createElement('a');
     link.className='user-header';link.href='/conta';

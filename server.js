@@ -13,6 +13,9 @@ const publicDir = fs.existsSync(path.join(root, 'dist')) ? path.join(root, 'dist
 const rankingFile = path.join(root, 'data', 'ranking.json');
 const port = Number(process.env.PORT || 3000);
 const mode = ['mock', 'manual', 'api'].includes(process.env.SALES_DATA_MODE) ? process.env.SALES_DATA_MODE : 'mock';
+const rankingSpreadsheetId = '10XOSE1z8HucS0_5K_8iX8VFg6s0ASZJwDAMfo0uacIA';
+const defaultSellerRankingUrl = `https://docs.google.com/spreadsheets/d/${rankingSpreadsheetId}/gviz/tq?tqx=out:csv&sheet=2_Ranking%20por%20Vendedor&range=A5:K1000`;
+const defaultTeamRankingUrl = `https://docs.google.com/spreadsheets/d/${rankingSpreadsheetId}/gviz/tq?tqx=out:csv&sheet=3_Ranking%20por%20Regi%C3%A3o&range=A5:H1000`;
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.gif': 'image/gif' };
 
 function send(res, status, payload, headers = {}) {
@@ -32,12 +35,12 @@ function validRanking(input) {
 
 async function getRanking() {
   if (mode !== 'api') return { ...readRanking(), source: mode };
-  if (!process.env.SALES_DATA_URL) throw new Error('SALES_DATA_URL não configurada');
-  if (!process.env.SALES_TEAM_DATA_URL) throw new Error('SALES_TEAM_DATA_URL não configurada');
+  const sellerUrl = process.env.SALES_DATA_URL?.includes(rankingSpreadsheetId) ? process.env.SALES_DATA_URL : defaultSellerRankingUrl;
+  const teamUrl = process.env.SALES_TEAM_DATA_URL || defaultTeamRankingUrl;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const responses = await Promise.all([process.env.SALES_DATA_URL, process.env.SALES_TEAM_DATA_URL].map(url => fetch(url, { signal: controller.signal })));
+    const responses = await Promise.all([sellerUrl, teamUrl].map(url => fetch(url, { signal: controller.signal })));
     if (responses.some(response => !response.ok)) throw new Error('Fonte externa respondeu com erro');
     const [sellerRaw, teamRaw] = await Promise.all(responses.map(response => response.text()));
     const data = rankingFromSpreadsheetCsv(sellerRaw, teamRaw);
